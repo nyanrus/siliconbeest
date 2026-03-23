@@ -28,7 +28,11 @@ const initials = computed(() => {
     .toUpperCase()
 })
 
-const hasImage = computed(() => !!props.src)
+// Default avatar as inline SVG data URI
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%236366f1'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23e0e7ff'/%3E%3Cellipse cx='50' cy='80' rx='28' ry='22' fill='%23e0e7ff'/%3E%3C/svg%3E"
+
+const resolvedSrc = computed(() => props.src || DEFAULT_AVATAR)
+const hasImage = computed(() => true) // always show image (default or custom)
 </script>
 
 <template>
@@ -38,7 +42,7 @@ const hasImage = computed(() => !!props.src)
   >
     <img
       v-if="hasImage"
-      :src="src"
+      :src="resolvedSrc"
       :alt="alt"
       class="w-full h-full object-cover"
       loading="lazy"

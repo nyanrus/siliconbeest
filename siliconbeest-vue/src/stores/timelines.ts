@@ -164,12 +164,15 @@ export const useTimelinesStore = defineStore('timelines', () => {
 
   function prependStatus(type: TimelineType, statusId: string, tag?: string) {
     const timeline = getTimeline(type, tag);
+    // Deduplicate: skip if already in newStatusIds or statusIds
+    if (timeline.newStatusIds.includes(statusId) || timeline.statusIds.includes(statusId)) return;
     timeline.newStatusIds.unshift(statusId);
   }
 
   function showNewStatuses(type: TimelineType, tag?: string) {
     const timeline = getTimeline(type, tag);
-    timeline.statusIds.unshift(...timeline.newStatusIds);
+    const unique = timeline.newStatusIds.filter((id) => !timeline.statusIds.includes(id));
+    timeline.statusIds.unshift(...unique);
     timeline.newStatusIds = [];
   }
 

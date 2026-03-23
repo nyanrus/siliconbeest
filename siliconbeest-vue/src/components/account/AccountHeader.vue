@@ -48,7 +48,7 @@ function handleToggle() {
 <template>
   <div>
     <!-- Banner -->
-    <div class="h-48 bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
+    <div class="h-48 relative overflow-hidden" :class="account.header ? '' : 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 dark:from-indigo-700 dark:via-purple-700 dark:to-pink-600'">
       <img
         v-if="account.header"
         :src="account.header"

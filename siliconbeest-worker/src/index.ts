@@ -194,6 +194,22 @@ app.route('/media', mediaServe);
 // Thumbnail / favicon
 // ---------------------------------------------------------------------------
 
+// Default avatar SVG (person silhouette on indigo bg)
+app.get('/default-avatar.svg', (c) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#6366f1"/><circle cx="50" cy="38" r="18" fill="#e0e7ff"/><ellipse cx="50" cy="80" rx="28" ry="22" fill="#e0e7ff"/></svg>`;
+  return new Response(svg, {
+    headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' },
+  });
+});
+
+// Default header SVG (gradient banner)
+app.get('/default-header.svg', (c) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6366f1"/><stop offset="50%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#ec4899"/></linearGradient></defs><rect width="600" height="200" fill="url(#g)"/></svg>`;
+  return new Response(svg, {
+    headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' },
+  });
+});
+
 app.get('/thumbnail.png', async (c) => {
   // Try R2 first
   const obj = await c.env.MEDIA_BUCKET.get('instance/thumbnail.png');
