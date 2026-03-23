@@ -17,8 +17,23 @@ import blockApp from './block';
 import unblockApp from './unblock';
 import muteApp from './mute';
 import unmuteApp from './unmute';
+import { authRequired } from '../../../../middleware/auth';
 
 const accounts = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+
+// GET /api/v1/accounts/:id/lists — lists containing this account
+accounts.get('/:id/lists', authRequired, async (c) => {
+  const accountId = c.req.param('id');
+  const currentAccountId = c.get('currentUser')!.account_id;
+  const { results } = await c.env.DB.prepare(
+    `SELECT l.id, l.title, l.replies_policy FROM lists l
+     JOIN list_accounts la ON la.list_id = l.id
+     WHERE la.account_id = ?1 AND l.account_id = ?2`,
+  ).bind(accountId, currentAccountId).all();
+  return c.json((results ?? []).map((r: any) => ({
+    id: r.id, title: r.title, replies_policy: r.replies_policy || 'list',
+  })));
+});
 
 // POST /api/v1/accounts — registration
 accounts.route('/', createApp);

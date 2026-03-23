@@ -38,7 +38,7 @@ app.get('/', authRequired, async (c) => {
     FROM follow_requests fr
     JOIN accounts a ON a.id = fr.account_id
     WHERE ${conditions.join(' AND ')}
-    ORDER BY ${orderClause.replace('id', 'fr.id')}
+    ORDER BY ${orderClause}
     LIMIT ?
   `;
   binds.push(limitValue);

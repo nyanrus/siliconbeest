@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
+import { createDefaultImages } from '../../../../utils/defaultImages';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -44,10 +45,10 @@ function serializeAccount(row: Record<string, unknown>, domain: string) {
     note: (row.note as string) || '',
     url: (row.url as string) || `https://${domain}/@${row.username}`,
     uri: row.uri as string,
-    avatar: (row.avatar_url as string) || '',
-    avatar_static: (row.avatar_static_url as string) || '',
-    header: (row.header_url as string) || '',
-    header_static: (row.header_static_url as string) || '',
+    avatar: (row.avatar_url as string) || null,
+    avatar_static: (row.avatar_static_url as string) || null,
+    header: (row.header_url as string) || null,
+    header_static: (row.header_static_url as string) || null,
     followers_count: (row.followers_count as number) || 0,
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,
@@ -121,11 +122,16 @@ app.post('/', async (c) => {
 
   const approved = regMode === 'approval' ? 0 : 1;
 
+  // Generate default avatar and header images
+  const { avatarUrl, headerUrl } = await createDefaultImages(
+    c.env.MEDIA_BUCKET, domain, accountId, body.username,
+  );
+
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO accounts (id, username, domain, display_name, note, uri, url, locked, bot, discoverable, statuses_count, followers_count, following_count, created_at, updated_at)
-       VALUES (?1, ?2, NULL, '', '', ?3, ?4, 0, 0, 1, 0, 0, 0, ?5, ?5)`,
-    ).bind(accountId, body.username, actorUri, `https://${domain}/@${body.username}`, now),
+      `INSERT INTO accounts (id, username, domain, display_name, note, uri, url, avatar_url, avatar_static_url, header_url, header_static_url, locked, bot, discoverable, statuses_count, followers_count, following_count, created_at, updated_at)
+       VALUES (?1, ?2, NULL, '', '', ?3, ?4, ?6, ?6, ?7, ?7, 0, 0, 1, 0, 0, 0, ?5, ?5)`,
+    ).bind(accountId, body.username, actorUri, `https://${domain}/@${body.username}`, now, avatarUrl, headerUrl),
     c.env.DB.prepare(
       `INSERT INTO users (id, account_id, email, encrypted_password, locale, confirmed_at, role, approved, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'user', ?7, ?6, ?6)`,

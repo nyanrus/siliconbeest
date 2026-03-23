@@ -44,6 +44,21 @@ const relativeTime = computed(() => {
   return t('time.days_ago', { n: diffDays })
 })
 
+const replyToDisplay = computed(() => {
+  // Try to find the reply-to account from mentions
+  if (props.status.mentions?.length) {
+    const mention = props.status.mentions.find(
+      (m: any) => m.id === props.status.in_reply_to_account_id
+    )
+    if (mention) return `@${(mention as any).acct || (mention as any).username}`
+  }
+  // Fallback: if replying to self
+  if (props.status.in_reply_to_account_id === props.status.account.id) {
+    return `@${props.status.account.acct}`
+  }
+  return '...'
+})
+
 function handleFavourite() {
   statusesStore.toggleFavourite(props.status)
 }
@@ -121,6 +136,21 @@ async function handleDelete() {
     class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
     :aria-label="t('status.by', { name: status.account.display_name })"
   >
+    <!-- Reply indicator -->
+    <div v-if="status.in_reply_to_id" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1 ml-12">
+      <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+      </svg>
+      <router-link
+        v-if="status.in_reply_to_account_id"
+        :to="status.in_reply_to_id ? `/@${status.account.acct}/${status.in_reply_to_id}` : '#'"
+        class="hover:underline"
+      >
+        {{ t('status.repliedTo', { user: replyToDisplay }) }}
+      </router-link>
+      <span v-else>{{ t('status.repliedTo', { user: '...' }) }}</span>
+    </div>
+
     <div class="flex gap-3">
       <!-- Avatar -->
       <router-link :to="`/@${status.account.acct}`" class="flex-shrink-0">
