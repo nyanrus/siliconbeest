@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
+import { buildBlockActivity } from '../../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -24,7 +26,7 @@ app.post('/:id/block', authRequired, async (c) => {
     throw new AppError(422, 'Validation failed', 'You cannot block yourself');
   }
 
-  const target = await c.env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
+  const target = await c.env.DB.prepare('SELECT id, domain, uri FROM accounts WHERE id = ?1').bind(targetId).first();
   if (!target) throw new AppError(404, 'Record not found');
 
   const existing = await c.env.DB.prepare(
@@ -45,6 +47,24 @@ app.post('/:id/block', authRequired, async (c) => {
       c.env.DB.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccountId, targetId),
       c.env.DB.prepare('DELETE FROM follow_requests WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, currentAccountId),
     ]);
+  }
+
+  // Federation: deliver Block activity if target is remote
+  if (target.domain) {
+    try {
+      const currentAccount = await c.env.DB.prepare(
+        'SELECT uri FROM accounts WHERE id = ?1',
+      ).bind(currentAccountId).first();
+      if (currentAccount) {
+        const actorUri = currentAccount.uri as string;
+        const targetUri = target.uri as string;
+        const targetInbox = `${targetUri}/inbox`;
+        const activity = buildBlockActivity(actorUri, targetUri);
+        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), targetInbox, currentAccountId);
+      }
+    } catch (e) {
+      console.error('Federation delivery failed for block:', e);
+    }
   }
 
   return c.json({

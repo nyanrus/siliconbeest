@@ -15,7 +15,7 @@ const { t } = useI18n()
       </aside>
 
       <!-- Main Content -->
-      <main class="flex-1 min-h-screen border-r border-gray-200 dark:border-gray-700 max-w-2xl w-full pb-16 lg:pb-0">
+      <main class="flex-1 min-h-screen border-r border-gray-200 dark:border-gray-700 w-full pb-16 lg:pb-0">
         <slot />
       </main>
 

@@ -21,6 +21,7 @@ import { processUndo } from './undo';
 import { processBlock } from './block';
 import { processMove } from './move';
 import { processFlag } from './flag';
+import { processEmojiReact } from './emojiReact';
 
 /**
  * Process an inbound ActivityPub activity by dispatching to the
@@ -44,8 +45,13 @@ export async function processInboxActivity(
 			return processAccept(activity, localAccountId, env);
 		case 'Reject':
 			return processReject(activity, localAccountId, env);
-		case 'Like':
+		case 'Like': {
+			const anyActivity = activity as APActivity & Record<string, unknown>;
+			if (anyActivity._misskey_reaction || anyActivity.content) {
+				return processEmojiReact(anyActivity, localAccountId, env);
+			}
 			return processLike(activity, localAccountId, env);
+		}
 		case 'Announce':
 			return processAnnounce(activity, localAccountId, env);
 		case 'Delete':
@@ -60,6 +66,12 @@ export async function processInboxActivity(
 			return processMove(activity, localAccountId, env);
 		case 'Flag':
 			return processFlag(activity, localAccountId, env);
+		case 'EmojiReact':
+			return processEmojiReact(
+				activity as APActivity & Record<string, unknown>,
+				localAccountId,
+				env,
+			);
 		default:
 			console.warn(`[inbox] Unhandled activity type: ${activity.type}`);
 	}

@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { buildAnnounceActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
+import { enqueueFanout } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -31,7 +33,27 @@ app.post('/:id/unreblog', authRequired, async (c) => {
     ]);
   }
 
-  const status = serializeStatus(row as Record<string, unknown>, domain);
+  // Federation: deliver Undo(Announce) to followers if original is remote
+  if (reblog && row.account_domain) {
+    try {
+      const currentAccount = await c.env.DB.prepare(
+        'SELECT uri FROM accounts WHERE id = ?1',
+      ).bind(currentAccountId).first();
+      if (currentAccount) {
+        const actorUri = currentAccount.uri as string;
+        const statusUri = row.uri as string;
+        const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+        const followersUri = `${actorUri}/followers`;
+        const announceActivity = buildAnnounceActivity(actorUri, statusUri, [AS_PUBLIC], [followersUri]);
+        const activity = buildUndoActivity(actorUri, announceActivity);
+        await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentAccountId);
+      }
+    } catch (e) {
+      console.error('Federation delivery failed for unreblog:', e);
+    }
+  }
+
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
   status.reblogged = false;
   if (reblog) {
     status.reblogs_count = Math.max(0, status.reblogs_count - 1);

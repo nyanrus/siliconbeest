@@ -58,9 +58,21 @@ export async function processUndo(
 		case 'Follow':
 			await undoFollow(actorAccount.id, objectUri, activityUri, env);
 			break;
-		case 'Like':
-			await undoLike(actorAccount.id, objectUri, activityUri, env);
+		case 'Like': {
+			// Check if the inner Like activity has _misskey_reaction (emoji reaction undo)
+			const innerObj = activity.object as unknown as Record<string, unknown> | undefined;
+			if (innerObj && (innerObj._misskey_reaction || innerObj.content)) {
+				await undoEmojiReaction(
+					actorAccount.id,
+					objectUri,
+					(innerObj._misskey_reaction ?? innerObj.content) as string,
+					env,
+				);
+			} else {
+				await undoLike(actorAccount.id, objectUri, activityUri, env);
+			}
 			break;
+		}
 		case 'Announce':
 			await undoAnnounce(actorAccount.id, objectUri, env);
 			break;
@@ -252,6 +264,32 @@ async function undoAnnounce(
 		`UPDATE statuses SET reblogs_count = MAX(0, reblogs_count - 1) WHERE id = ?1`,
 	)
 		.bind(originalStatus.id)
+		.run();
+}
+
+async function undoEmojiReaction(
+	actorAccountId: string,
+	statusUri: string | null,
+	emoji: string,
+	env: Env,
+): Promise<void> {
+	if (!statusUri) {
+		console.warn('[undo] Cannot undo emoji reaction without status URI');
+		return;
+	}
+
+	const status = await env.DB.prepare(
+		`SELECT id FROM statuses WHERE uri = ?1 LIMIT 1`,
+	)
+		.bind(statusUri)
+		.first<{ id: string }>();
+
+	if (!status) return;
+
+	await env.DB.prepare(
+		`DELETE FROM emoji_reactions WHERE account_id = ?1 AND status_id = ?2 AND emoji = ?3`,
+	)
+		.bind(actorAccountId, status.id, emoji)
 		.run();
 }
 

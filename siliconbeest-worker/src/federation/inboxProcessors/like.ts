@@ -9,6 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
+import { processEmojiReact } from './emojiReact';
 
 /**
  * Resolve or upsert a remote account by actor URI.
@@ -68,6 +69,12 @@ export async function processLike(
 	_localAccountId: string,
 	env: Env,
 ): Promise<void> {
+	// Check if this is actually an emoji reaction (Misskey-compatible)
+	const anyActivity = activity as APActivity & Record<string, unknown>;
+	if (anyActivity._misskey_reaction || anyActivity.content) {
+		return processEmojiReact(anyActivity, _localAccountId, env);
+	}
+
 	const statusUri =
 		typeof activity.object === 'string' ? activity.object : undefined;
 

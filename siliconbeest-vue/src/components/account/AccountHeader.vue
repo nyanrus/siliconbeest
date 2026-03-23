@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import type { Relationship } from '@/types/mastodon'
 import Avatar from '../common/Avatar.vue'
 import FollowButton from './FollowButton.vue'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   account: {
     id: string
     avatar: string
@@ -19,12 +20,21 @@ defineProps<{
     fields?: Array<{ name: string; value: string; verified_at?: string | null }>
   }
   isOwn?: boolean
+  relationship?: Relationship
+}>()
+
+const emit = defineEmits<{
+  'toggle-follow': []
 }>()
 
 function formatStat(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
   return String(n)
+}
+
+function handleToggle() {
+  emit('toggle-follow')
 }
 </script>
 
@@ -48,7 +58,14 @@ function formatStat(n: number): string {
           class="ring-4 ring-white dark:ring-gray-900"
         />
         <div class="flex gap-2 mt-14">
-          <FollowButton v-if="!isOwn" :account-id="account.id" />
+          <FollowButton
+            v-if="!isOwn"
+            :account-id="account.id"
+            :following="relationship?.following"
+            :requested="relationship?.requested"
+            :blocked="relationship?.blocking"
+            @toggle="handleToggle"
+          />
           <router-link
             v-if="isOwn"
             to="/settings/profile"

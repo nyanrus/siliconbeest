@@ -7,6 +7,7 @@ import {
   dismissNotification as apiDismissNotification,
 } from '@/api/mastodon/notifications';
 import { parseLinkHeader } from '@/api/client';
+import { StreamingClient } from '@/api/streaming';
 import { useStatusesStore } from './statuses';
 import { useAccountsStore } from './accounts';
 
@@ -18,6 +19,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const maxId = ref<string>();
   const error = ref<string | null>(null);
   const lastReadId = ref<string | null>(null);
+  const streamingClient = ref<StreamingClient | null>(null);
 
   const unreadCount = computed(() => {
     if (!lastReadId.value) return items.value.length;
@@ -51,6 +53,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
       hasMore.value = !!links.next;
       if (data.length > 0) {
         maxId.value = data[data.length - 1]!.id;
+      }
+
+      // Auto-connect streaming for notifications
+      if (!streamingClient.value) {
+        connectStream(token);
       }
     } catch (e) {
       error.value = (e as Error).message;
@@ -106,6 +113,26 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items.value.unshift(notification);
   }
 
+  function connectStream(token: string) {
+    disconnectStream();
+
+    streamingClient.value = new StreamingClient(token, 'user:notification', {
+      onNotification(notification: Notification) {
+        cacheFromNotifications([notification]);
+        prepend(notification);
+      },
+    });
+
+    streamingClient.value.connect();
+  }
+
+  function disconnectStream() {
+    if (streamingClient.value) {
+      streamingClient.value.disconnect();
+      streamingClient.value = null;
+    }
+  }
+
   return {
     items,
     loading,
@@ -114,11 +141,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
     error,
     unreadCount,
     lastReadId,
+    streamingClient,
     fetch,
     fetchMore,
     clearAll,
     dismiss,
     markAllRead,
     prepend,
+    connectStream,
+    disconnectStream,
   };
 });

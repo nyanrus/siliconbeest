@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -39,7 +39,7 @@ app.post('/:id/bookmark', authRequired, async (c) => {
     ).bind(id, currentAccountId, statusId, now).run();
   }
 
-  const status = serializeStatus(row as Record<string, unknown>, domain);
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
   status.bookmarked = true;
   return c.json(status);
 });

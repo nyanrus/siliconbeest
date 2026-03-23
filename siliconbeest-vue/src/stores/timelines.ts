@@ -7,6 +7,7 @@ import {
   getPublicTimeline,
   getTagTimeline,
 } from '@/api/mastodon/timelines';
+import { StreamingClient } from '@/api/streaming';
 import { useStatusesStore } from './statuses';
 import { useAccountsStore } from './accounts';
 
@@ -35,6 +36,7 @@ function createEmptyTimeline(): TimelineState {
 
 export const useTimelinesStore = defineStore('timelines', () => {
   const timelines = ref<Map<string, TimelineState>>(new Map());
+  const streamingClient = ref<StreamingClient | null>(null);
 
   function getTimelineKey(type: TimelineType, tag?: string): string {
     return type === 'tag' ? `tag:${tag}` : type;
@@ -94,6 +96,11 @@ export const useTimelinesStore = defineStore('timelines', () => {
       timeline.hasMore = !!links.next;
       if (response.data.length > 0) {
         timeline.maxId = response.data[response.data.length - 1]!.id;
+      }
+
+      // Auto-connect streaming for home timeline
+      if (type === 'home' && opts?.token && !streamingClient.value) {
+        connectStream(opts.token, 'user');
       }
     } catch (e) {
       timeline.error = (e as Error).message;
@@ -164,13 +171,57 @@ export const useTimelinesStore = defineStore('timelines', () => {
     }
   }
 
+  function connectStream(token: string, stream: string = 'user') {
+    // Disconnect any existing connection first
+    disconnectStream();
+
+    const statusStore = useStatusesStore();
+    const accountStore = useAccountsStore();
+
+    streamingClient.value = new StreamingClient(token, stream, {
+      onUpdate(status: Status) {
+        // Cache the status and account
+        statusStore.cacheStatus(status);
+        accountStore.cacheAccount(status.account);
+        if (status.reblog) {
+          accountStore.cacheAccount(status.reblog.account);
+        }
+        // Add to new status IDs queue for the home timeline
+        prependStatus('home', status.id);
+      },
+      onDelete(statusId: string) {
+        removeStatus(statusId);
+      },
+      onStatusUpdate(status: Status) {
+        // Re-cache the updated status
+        statusStore.cacheStatus(status);
+        accountStore.cacheAccount(status.account);
+        if (status.reblog) {
+          accountStore.cacheAccount(status.reblog.account);
+        }
+      },
+    });
+
+    streamingClient.value.connect();
+  }
+
+  function disconnectStream() {
+    if (streamingClient.value) {
+      streamingClient.value.disconnect();
+      streamingClient.value = null;
+    }
+  }
+
   return {
     timelines,
+    streamingClient,
     getTimeline,
     fetchTimeline,
     fetchMore,
     prependStatus,
     showNewStatuses,
     removeStatus,
+    connectStream,
+    disconnectStream,
   };
 });

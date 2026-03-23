@@ -173,6 +173,26 @@ export function buildUndoActivity(actor: string, originalActivity: APActivity): 
 }
 
 /**
+ * Build a Flag (report) activity targeting an actor and optionally their statuses.
+ * Per AP spec, the actor is typically the instance actor, not a user.
+ */
+export function buildFlagActivity(
+	actorUri: string,
+	targetUri: string,
+	statusUris: string[],
+	comment: string,
+): APActivity {
+	return {
+		'@context': AP_CONTEXT,
+		id: activityId(actorUri),
+		type: 'Flag',
+		actor: actorUri,
+		object: [targetUri, ...statusUris],
+		content: comment,
+	};
+}
+
+/**
  * Build a Block activity targeting another actor.
  */
 export function buildBlockActivity(actor: string, target: string): APActivity {

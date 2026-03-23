@@ -147,7 +147,7 @@ app.get('/', async (c) => {
 	const scope = c.req.query('scope') ?? 'read';
 	const state = c.req.query('state') ?? '';
 	const responseType = c.req.query('response_type') ?? 'code';
-	const error = c.req.query('error') ?? undefined;
+	const errorMsg = c.req.query('error') ?? undefined;
 
 	// If session_token is present, show TOTP page
 	const sessionToken = c.req.query('session_token');
@@ -160,10 +160,40 @@ app.get('/', async (c) => {
 				scope,
 				state,
 				responseType,
-				error,
+				error: errorMsg,
 				instanceTitle: c.env.INSTANCE_TITLE,
 			}),
 		);
+	}
+
+	// Some apps pass email/password as query params on GET — handle direct login
+	const email = c.req.query('email');
+	const password = c.req.query('password');
+	if (email && password && clientId) {
+		// Validate app
+		const oauthApp = await c.env.DB.prepare(
+			'SELECT id FROM oauth_applications WHERE client_id = ?1 LIMIT 1',
+		).bind(clientId).first();
+
+		if (oauthApp) {
+			const user = await c.env.DB.prepare(
+				'SELECT id, encrypted_password, otp_enabled FROM users WHERE email = ?1 LIMIT 1',
+			).bind(email.toLowerCase()).first();
+
+			if (user) {
+				const valid = await verifyPassword(password, user.encrypted_password as string);
+				if (valid && !user.otp_enabled) {
+					return await issueAuthorizationCode(c, {
+						userId: user.id as string,
+						applicationId: oauthApp.id as string,
+						redirectUri,
+						scope,
+						state,
+					});
+				}
+			}
+		}
+		// Fall through to login page on failure
 	}
 
 	return c.html(
@@ -173,7 +203,7 @@ app.get('/', async (c) => {
 			scope,
 			state,
 			responseType,
-			error,
+			error: errorMsg,
 			instanceTitle: c.env.INSTANCE_TITLE,
 		}),
 	);

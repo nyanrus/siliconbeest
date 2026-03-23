@@ -1,20 +1,30 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import LoginForm from '@/components/auth/LoginForm.vue'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
+const auth = useAuthStore()
+const error = ref('')
 
 async function handleLogin(credentials: { email: string; password: string }) {
-  // TODO: call auth API
-  console.log('login', credentials)
-  router.push('/')
+  error.value = ''
+  try {
+    await auth.login(credentials.email, credentials.password)
+    const redirect = (route.query.redirect as string) || '/home'
+    router.push(redirect)
+  } catch (e: any) {
+    error.value = e.message || t('error.unauthorized')
+  }
 }
 
 function handleSso(provider: string) {
-  // TODO: initiate SSO flow
-  console.log('sso', provider)
+  // Redirect to OAuth SSO flow
+  window.location.href = `/oauth/authorize?provider=${provider}`
 }
 </script>
 
@@ -26,7 +36,15 @@ function handleSso(provider: string) {
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('auth.welcome') }}</p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <LoginForm @submit="handleLogin" @sso="handleSso" />
+        <!-- Global error -->
+        <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+          {{ error }}
+        </div>
+        <!-- Loading overlay -->
+        <div v-if="auth.loading" class="text-center py-4 text-gray-500">
+          {{ t('common.loading') }}
+        </div>
+        <LoginForm v-else @submit="handleLogin" @sso="handleSso" />
       </div>
     </div>
   </div>

@@ -43,7 +43,7 @@ export function sendAdminEmail(token: string, to: string, subject: string, body:
 }
 
 export function testSmtp(token: string) {
-  return apiFetch<void>('/v1/admin/settings/smtp_test', {
+  return apiFetch<void>('/v1/admin/email/test', {
     method: 'POST',
     token,
   });

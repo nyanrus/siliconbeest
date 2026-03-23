@@ -1,34 +1,49 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
+import { useTimelinesStore } from '@/stores/timelines'
+import { useStatusesStore } from '@/stores/statuses'
+import { useAuthStore } from '@/stores/auth'
+import type { TimelineType } from '@/stores/timelines'
 import AppShell from '@/components/layout/AppShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 
 const { t } = useI18n()
+const timelinesStore = useTimelinesStore()
+const statusesStore = useStatusesStore()
+const auth = useAuthStore()
 
-type TimelineType = 'local' | 'federated'
-const activeTab = ref<TimelineType>('local')
-const statuses = ref<Status[]>([])
-const loading = ref(false)
-const done = ref(false)
+type ExploreTab = 'local' | 'federated'
+const activeTab = ref<ExploreTab>('local')
+
+const timelineType = computed<TimelineType>(() =>
+  activeTab.value === 'federated' ? 'public' : 'local'
+)
+
+const timeline = computed(() => timelinesStore.getTimeline(timelineType.value))
+
+const statuses = computed(() => {
+  return timeline.value.statusIds
+    .map((id) => statusesStore.getCached(id))
+    .filter((s): s is Status => !!s)
+})
 
 async function loadTimeline() {
-  if (loading.value || done.value) return
-  loading.value = true
-  try {
-    // TODO: fetch from API based on activeTab
-  } finally {
-    loading.value = false
-  }
+  await timelinesStore.fetchTimeline(timelineType.value, { token: auth.token ?? undefined })
 }
 
-function switchTab(tab: TimelineType) {
-  activeTab.value = tab
-  statuses.value = []
-  done.value = false
-  loadTimeline()
+async function loadMore() {
+  await timelinesStore.fetchMore(timelineType.value, { token: auth.token ?? undefined })
 }
+
+function switchTab(tab: ExploreTab) {
+  activeTab.value = tab
+}
+
+watch(activeTab, () => {
+  loadTimeline()
+})
 
 onMounted(loadTimeline)
 </script>
@@ -40,7 +55,7 @@ onMounted(loadTimeline)
         <h1 class="text-xl font-bold px-4 py-3">{{ t('nav.explore') }}</h1>
         <div class="flex border-b border-gray-200 dark:border-gray-700">
           <button
-            v-for="tab in (['local', 'federated'] as TimelineType[])"
+            v-for="tab in (['local', 'federated'] as ExploreTab[])"
             :key="tab"
             @click="switchTab(tab)"
             class="flex-1 py-3 text-center text-sm font-medium transition-colors relative"
@@ -57,11 +72,15 @@ onMounted(loadTimeline)
         </div>
       </header>
 
+      <div v-if="timeline.error" class="p-4 text-center text-red-500">
+        {{ timeline.error }}
+      </div>
+
       <TimelineFeed
         :statuses="statuses"
-        :loading="loading"
-        :done="done"
-        @load-more="loadTimeline"
+        :loading="timeline.loading || timeline.loadingMore"
+        :done="!timeline.hasMore"
+        @load-more="loadMore"
       />
     </div>
   </AppShell>

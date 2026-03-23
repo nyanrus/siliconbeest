@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
-import { authRequired, adminRequired } from '../../../../middleware/auth';
+import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { sendEmail } from '../../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -38,7 +38,10 @@ app.post('/test', async (c) => {
 
 	const sent = await sendEmail(c.env, c.env.DB, currentUser.email, `[${title}] Test email`, html);
 
-	return c.json({ sent }, 200);
+	if (!sent) {
+		throw new AppError(422, 'Email not sent', 'SMTP is not configured or delivery failed');
+	}
+	return c.json({ sent: true }, 200);
 });
 
 export default app;

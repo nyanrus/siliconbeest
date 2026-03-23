@@ -141,7 +141,25 @@ app.post('/', authRequired, async (c) => {
     );
   }
 
+  // Also insert into author's own home timeline
+  stmts.push(
+    c.env.DB.prepare(
+      'INSERT OR IGNORE INTO home_timeline_entries (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
+    ).bind(generateULID(), currentUser.account_id, statusId, now),
+  );
+
   await c.env.DB.batch(stmts);
+
+  // Enqueue timeline fanout to followers + federation delivery
+  try {
+    await c.env.QUEUE_INTERNAL.send({
+      type: 'timeline_fanout',
+      statusId,
+      accountId: currentUser.account_id,
+    });
+  } catch {
+    // Queue failure should not block status creation
+  }
 
   // Handle hashtags
   const hashtags = extractHashtags(statusText);
@@ -175,6 +193,37 @@ app.post('/', authRequired, async (c) => {
       ).bind(mentionId, statusId, mentioned.id as string, now).run();
     }
   }
+
+  // Fetch full account data for response
+  const accountRow = await c.env.DB.prepare(
+    'SELECT * FROM accounts WHERE id = ?1',
+  ).bind(currentUser.account_id).first();
+
+  const acct = accountRow!.username as string;
+  const accountData = {
+    id: accountRow!.id as string,
+    username: accountRow!.username as string,
+    acct,
+    display_name: (accountRow!.display_name as string) || '',
+    locked: !!(accountRow!.locked as number),
+    bot: !!(accountRow!.bot as number),
+    discoverable: accountRow!.discoverable == null ? null : !!(accountRow!.discoverable as number),
+    group: false,
+    created_at: accountRow!.created_at as string,
+    note: (accountRow!.note as string) || '',
+    url: (accountRow!.url as string) || `https://${domain}/@${acct}`,
+    uri: (accountRow!.uri as string) || `https://${domain}/users/${acct}`,
+    avatar: (accountRow!.avatar_url as string) || '',
+    avatar_static: (accountRow!.avatar_static_url as string) || (accountRow!.avatar_url as string) || '',
+    header: (accountRow!.header_url as string) || '',
+    header_static: (accountRow!.header_static_url as string) || (accountRow!.header_url as string) || '',
+    followers_count: (accountRow!.followers_count as number) || 0,
+    following_count: (accountRow!.following_count as number) || 0,
+    statuses_count: (accountRow!.statuses_count as number) || 0,
+    last_status_at: (accountRow!.last_status_at as string) || null,
+    emojis: [],
+    fields: [],
+  };
 
   // Fetch media attachments for response
   const { results: mediaResults } = await c.env.DB.prepare(
@@ -215,30 +264,7 @@ app.post('/', authRequired, async (c) => {
     content,
     reblog: null,
     application: null,
-    account: {
-      id: currentUser.account_id,
-      username: currentAccount.username,
-      acct: currentAccount.username,
-      display_name: '',
-      locked: false,
-      bot: false,
-      discoverable: true,
-      group: false,
-      created_at: now,
-      note: '',
-      url: `https://${domain}/@${currentAccount.username}`,
-      uri: `https://${domain}/users/${currentAccount.username}`,
-      avatar: '',
-      avatar_static: '',
-      header: '',
-      header_static: '',
-      followers_count: 0,
-      following_count: 0,
-      statuses_count: 0,
-      last_status_at: null,
-      emojis: [],
-      fields: [],
-    },
+    account: accountData,
     media_attachments: mediaAttachments,
     mentions: [],
     tags: hashtags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),

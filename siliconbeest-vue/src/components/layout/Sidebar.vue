@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
 import { ref } from 'vue'
 import Avatar from '../common/Avatar.vue'
@@ -9,6 +10,7 @@ import Avatar from '../common/Avatar.vue'
 const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
+const ui = useUiStore()
 const showLangMenu = ref(false)
 
 const navItems = [
@@ -22,7 +24,7 @@ const navItems = [
 ]
 
 function compose() {
-  router.push({ name: 'compose' })
+  ui.openComposeModal()
 }
 
 const currentLocaleName = () => {
@@ -55,6 +57,17 @@ async function switchLocale(code: string) {
         </router-link>
       </li>
     </ul>
+
+    <!-- Admin/Moderator Link -->
+    <router-link
+      v-if="auth.isAdmin || auth.isModerator"
+      to="/admin"
+      class="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-lg text-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 no-underline text-gray-900 dark:text-gray-100"
+      active-class="bg-gray-100 dark:bg-gray-800 font-bold"
+    >
+      <span class="text-xl w-7 text-center" aria-hidden="true">🛡️</span>
+      <span>{{ t('nav.admin') }}</span>
+    </router-link>
 
     <!-- Compose Button -->
     <button

@@ -58,6 +58,7 @@ export function register(params: {
   username: string;
   email: string;
   password: string;
+  agreement?: boolean;
   locale?: string;
   reason?: string;
 }) {

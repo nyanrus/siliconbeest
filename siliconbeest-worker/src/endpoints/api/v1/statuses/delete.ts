@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
+import { buildDeleteActivity } from '../../../../federation/activityBuilder';
+import { enqueueFanout } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -33,6 +35,22 @@ app.delete('/:id', authRequired, async (c) => {
   }
 
   await c.env.DB.batch(stmts);
+
+  // Federation: deliver Delete(Note) to followers if status is local
+  if (row.local === 1) {
+    try {
+      const account = await c.env.DB.prepare(
+        'SELECT uri FROM accounts WHERE id = ?1',
+      ).bind(currentAccountId).first();
+      if (account) {
+        const actorUri = account.uri as string;
+        const activity = buildDeleteActivity(actorUri, row.uri as string);
+        await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentAccountId);
+      }
+    } catch (e) {
+      console.error('Federation delivery failed for status delete:', e);
+    }
+  }
 
   // Return the deleted status per Mastodon spec
   return c.json({

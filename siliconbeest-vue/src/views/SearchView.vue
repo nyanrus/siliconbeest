@@ -2,12 +2,15 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account, Status, Tag } from '@/types/mastodon'
+import { search as apiSearch } from '@/api/mastodon/search'
+import { useAuthStore } from '@/stores/auth'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
 import AccountCard from '@/components/account/AccountCard.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
+const auth = useAuthStore()
 
 type SearchTab = 'accounts' | 'statuses' | 'hashtags'
 
@@ -18,17 +21,23 @@ const statuses = ref<Status[]>([])
 const hashtags = ref<Tag[]>([])
 const loading = ref(false)
 const searched = ref(false)
+const error = ref<string | null>(null)
 
-async function search() {
+async function performSearch() {
   if (!query.value.trim()) return
   loading.value = true
   searched.value = true
+  error.value = null
   try {
-    // TODO: call search API
-    // const res = await api.search(query.value)
-    // accounts.value = res.accounts
-    // statuses.value = res.statuses
-    // hashtags.value = res.hashtags
+    const { data } = await apiSearch(query.value, {
+      resolve: true,
+      token: auth.token ?? undefined,
+    })
+    accounts.value = data.accounts
+    statuses.value = data.statuses
+    hashtags.value = data.hashtags
+  } catch (e) {
+    error.value = (e as Error).message
   } finally {
     loading.value = false
   }
@@ -39,7 +48,7 @@ async function search() {
   <AppShell>
     <div>
       <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 p-4">
-        <form @submit.prevent="search" class="flex gap-2">
+        <form @submit.prevent="performSearch" class="flex gap-2">
           <input
             v-model="query"
             type="search"
@@ -70,6 +79,10 @@ async function search() {
           </button>
         </div>
       </header>
+
+      <div v-if="error" class="p-4 text-center text-red-500">
+        {{ error }}
+      </div>
 
       <LoadingSpinner v-if="loading" />
 

@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -43,9 +44,28 @@ app.get('/:id/context', authOptional, async (c) => {
      LIMIT 60`,
   ).bind(status.conversation_id as string, statusId).all();
 
+  const currentAccountId = c.get('currentUser')?.account_id ?? null;
+
+  // Collect all status IDs for batch enrichment
+  const allRows = [...ancestors, ...(descendantRows as Record<string, unknown>[])];
+  const allIds = allRows.map((r) => r.id as string);
+  const enrichments = await enrichStatuses(c.env.DB, domain, allIds, currentAccountId);
+
+  function enrichAndSerialize(r: Record<string, unknown>) {
+    const s = serializeStatus(r, domain);
+    const e = enrichments.get(r.id as string);
+    if (e) {
+      s.media_attachments = e.mediaAttachments as any[];
+      s.favourited = e.favourited ?? false;
+      s.reblogged = e.reblogged ?? false;
+      s.bookmarked = e.bookmarked ?? false;
+    }
+    return s;
+  }
+
   return c.json({
-    ancestors: ancestors.map((r) => serializeStatus(r, domain)),
-    descendants: (descendantRows as Record<string, unknown>[]).map((r) => serializeStatus(r, domain)),
+    ancestors: ancestors.map(enrichAndSerialize),
+    descendants: (descendantRows as Record<string, unknown>[]).map(enrichAndSerialize),
   });
 });
 

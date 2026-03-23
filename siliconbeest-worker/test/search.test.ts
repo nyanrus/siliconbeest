@@ -82,9 +82,9 @@ describe('Search API', () => {
       expect(body.hashtags).toBeDefined();
     });
 
-    it('returns 401 without auth', async () => {
+    it('allows search without auth (public search)', async () => {
       const res = await SELF.fetch(`${BASE}/api/v2/search?q=test`);
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(200);
     });
   });
 });

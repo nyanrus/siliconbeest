@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
-import { authRequired, adminRequired } from '../../../../middleware/auth';
+import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 

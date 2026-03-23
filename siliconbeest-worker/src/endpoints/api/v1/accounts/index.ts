@@ -6,6 +6,7 @@ import verifyCredentialsApp from './verifyCredentials';
 import updateCredentialsApp from './updateCredentials';
 import relationshipsApp from './relationships';
 import searchApp from './search';
+import lookupApp from './lookup';
 import fetchApp from './fetch';
 import statusesApp from './statuses';
 import followersApp from './followers';
@@ -33,6 +34,9 @@ accounts.route('/', relationshipsApp);
 
 // GET /api/v1/accounts/search
 accounts.route('/', searchApp);
+
+// GET /api/v1/accounts/lookup
+accounts.route('/', lookupApp);
 
 // GET /api/v1/accounts/:id
 accounts.route('/', fetchApp);

@@ -1,18 +1,22 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
-import { authRequired } from '../../../middleware/auth';
+import { authOptional } from '../../../middleware/auth';
 import { serializeAccount, serializeStatus, serializeTag } from '../../../utils/mastodonSerializer';
+import { enrichStatuses } from '../../../utils/statusEnrichment';
+import { resolveWebFinger, fetchRemoteActor } from '../../../federation/webfinger';
+import { generateUlid } from '../../../utils/ulid';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
-app.get('/', authRequired, async (c) => {
+app.get('/', authOptional, async (c) => {
   const q = c.req.query('q')?.trim();
   if (!q) {
     return c.json({ accounts: [], statuses: [], hashtags: [] });
   }
 
   const type = c.req.query('type');
+  const resolve = c.req.query('resolve') === 'true';
   const limitRaw = parseInt(c.req.query('limit') ?? '20', 10);
   const limit = Math.min(Math.max(limitRaw, 1), 40);
   const offsetRaw = parseInt(c.req.query('offset') ?? '0', 10);
@@ -38,6 +42,69 @@ app.get('/', authRequired, async (c) => {
     accounts = (results ?? []).map((row: any) =>
       serializeAccount(row as AccountRow),
     );
+
+    // WebFinger resolution: if resolve=true and query looks like user@domain
+    if (resolve && /^@?[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) {
+      const webfingerResult = await resolveWebFinger(q, c.env.CACHE);
+      if (webfingerResult) {
+        // Check if we already have this actor in the DB
+        const existingActor = await c.env.DB.prepare(
+          'SELECT * FROM accounts WHERE uri = ?1',
+        ).bind(webfingerResult.actorUri).first();
+
+        if (existingActor) {
+          // Include existing actor in results if not already present
+          const existingId = existingActor.id as string;
+          if (!accounts.some((a: any) => a.id === existingId)) {
+            accounts.unshift(serializeAccount(existingActor as unknown as AccountRow));
+          }
+        } else {
+          // Fetch remote actor and upsert
+          const actorData = await fetchRemoteActor(webfingerResult.actorUri, c.env.CACHE);
+          if (actorData) {
+            const id = generateUlid();
+            const now = new Date().toISOString();
+            const username = actorData.preferredUsername || actorData.name || '';
+            const actorDomain = new URL(actorData.id).hostname;
+
+            await c.env.DB.prepare(
+              `INSERT OR IGNORE INTO accounts
+                (id, username, domain, display_name, note, uri, url,
+                 avatar_url, avatar_static_url, header_url, header_static_url,
+                 locked, bot, discoverable, statuses_count, followers_count, following_count,
+                 created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 0, 0, 0, ?15, ?16)`,
+            ).bind(
+              id,
+              username,
+              actorDomain,
+              actorData.name || username,
+              actorData.summary || '',
+              actorData.id,
+              webfingerResult.profileUrl || actorData.url || actorData.id,
+              actorData.icon?.url || '',
+              actorData.icon?.url || '',
+              actorData.image?.url || '',
+              actorData.image?.url || '',
+              actorData.manuallyApprovesFollowers ? 1 : 0,
+              actorData.type === 'Service' ? 1 : 0,
+              actorData.discoverable !== false ? 1 : 0,
+              now,
+              now,
+            ).run();
+
+            // Fetch the inserted/existing account
+            const insertedAccount = await c.env.DB.prepare(
+              'SELECT * FROM accounts WHERE uri = ?1',
+            ).bind(actorData.id).first();
+
+            if (insertedAccount) {
+              accounts.unshift(serializeAccount(insertedAccount as unknown as AccountRow));
+            }
+          }
+        }
+      }
+    }
   }
 
   // Search statuses
@@ -61,6 +128,15 @@ app.get('/', authRequired, async (c) => {
       LIMIT ?2 OFFSET ?3
     `).bind(searchTerm, limit, offset).all();
 
+    const statusIds = (results ?? []).map((r: any) => r.id as string);
+    const currentAccount = c.get('currentAccount');
+    const enrichments = await enrichStatuses(
+      c.env.DB,
+      domain,
+      statusIds,
+      currentAccount?.id ?? null,
+    );
+
     statuses = (results ?? []).map((row: any) => {
       const accountRow: AccountRow = {
         id: row.a_id, username: row.a_username, domain: row.a_domain,
@@ -74,7 +150,14 @@ app.get('/', authRequired, async (c) => {
         updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
         silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
       };
-      return serializeStatus(row as StatusRow, { account: serializeAccount(accountRow) });
+      const e = enrichments.get(row.id);
+      return serializeStatus(row as StatusRow, {
+        account: serializeAccount(accountRow),
+        mediaAttachments: e?.mediaAttachments,
+        favourited: e?.favourited,
+        reblogged: e?.reblogged,
+        bookmarked: e?.bookmarked,
+      });
     });
   }
 

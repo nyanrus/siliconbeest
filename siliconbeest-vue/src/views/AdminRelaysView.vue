@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getRelays, addRelay as apiAddRelay, removeRelay as apiRemoveRelay } from '@/api/mastodon/admin';
 import { useAuthStore } from '@/stores/auth';
+import AdminLayout from '@/components/layout/AdminLayout.vue';
 
 const { t } = useI18n();
 const auth = useAuthStore();
@@ -64,7 +65,8 @@ onMounted(fetchRelays);
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto p-4">
+  <AdminLayout>
+  <div class="w-full p-4">
     <h1 class="text-2xl font-bold mb-6">{{ $t('admin.relays') }}</h1>
 
     <!-- Add relay form -->
@@ -108,4 +110,5 @@ onMounted(fetchRelays);
       </button>
     </div>
   </div>
+  </AdminLayout>
 </template>

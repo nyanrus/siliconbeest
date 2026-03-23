@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import LoadingSpinner from './LoadingSpinner.vue'
 
-defineProps<{
+const props = defineProps<{
   loading?: boolean
   done?: boolean
 }>()
@@ -18,13 +18,17 @@ onMounted(() => {
   if (!sentinel.value) return
   observer = new IntersectionObserver(
     (entries) => {
-      if (entries[0]?.isIntersecting) {
+      if (entries[0]?.isIntersecting && !props.loading && !props.done) {
         emit('load-more')
       }
     },
     { rootMargin: '200px' }
   )
   observer.observe(sentinel.value)
+})
+
+watch(() => props.done, (isDone) => {
+  if (isDone) observer?.disconnect()
 })
 
 onUnmounted(() => {

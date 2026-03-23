@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -130,7 +131,21 @@ app.get('/:id/statuses', authOptional, async (c) => {
   const stmt = c.env.DB.prepare(sql);
   const { results } = await stmt.bind(...params).all();
 
-  const statuses = (results as Record<string, unknown>[]).map((r) => serializeStatus(r, domain));
+  const statusIds = (results as Record<string, unknown>[]).map((r) => r.id as string);
+  const currentAccountId = c.get('currentUser')?.account_id ?? null;
+  const enrichments = await enrichStatuses(c.env.DB, domain, statusIds, currentAccountId);
+
+  const statuses = (results as Record<string, unknown>[]).map((r) => {
+    const s = serializeStatus(r, domain);
+    const e = enrichments.get(r.id as string);
+    if (e) {
+      s.media_attachments = e.mediaAttachments as any[];
+      s.favourited = e.favourited ?? false;
+      s.reblogged = e.reblogged ?? false;
+      s.bookmarked = e.bookmarked ?? false;
+    }
+    return s;
+  });
 
   if (pagination.minId) statuses.reverse();
 

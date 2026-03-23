@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -56,7 +57,7 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
       emojis: [],
       fields: [],
     },
-    media_attachments: [],
+    media_attachments: [] as any[],
     mentions: [],
     tags: [],
     emojis: [],
@@ -64,6 +65,29 @@ function serializeStatus(row: Record<string, unknown>, domain: string, currentAc
     poll: null,
     edited_at: (row.edited_at as string) || null,
   };
+}
+
+/**
+ * Serialize a status with enrichment (media + interaction states).
+ * Use this for single-status endpoints (favourite, reblog, fetch, etc.)
+ */
+async function serializeStatusEnriched(
+  row: Record<string, unknown>,
+  db: D1Database,
+  domain: string,
+  currentAccountId?: string | null,
+) {
+  const status = serializeStatus(row, domain);
+  const statusId = row.id as string;
+  const enrichments = await enrichStatuses(db, domain, [statusId], currentAccountId);
+  const e = enrichments.get(statusId);
+  if (e) {
+    status.media_attachments = e.mediaAttachments as any[];
+    status.favourited = e.favourited ?? false;
+    status.reblogged = e.reblogged ?? false;
+    status.bookmarked = e.bookmarked ?? false;
+  }
+  return status;
 }
 
 const STATUS_JOIN_SQL = `
@@ -85,6 +109,7 @@ const app = new Hono<HonoEnv>();
 
 app.get('/:id', authOptional, async (c) => {
   const statusId = c.req.param('id');
+  const currentAccountId = c.get('currentUser')?.account_id ?? null;
   const domain = c.env.INSTANCE_DOMAIN;
 
   const row = await c.env.DB.prepare(
@@ -93,8 +118,8 @@ app.get('/:id', authOptional, async (c) => {
 
   if (!row) throw new AppError(404, 'Record not found');
 
-  return c.json(serializeStatus(row as Record<string, unknown>, domain));
+  return c.json(await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId));
 });
 
-export { STATUS_JOIN_SQL, serializeStatus };
+export { STATUS_JOIN_SQL, serializeStatus, serializeStatusEnriched };
 export default app;

@@ -3,9 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getAdminSettings, updateAdminSettings, testSmtp } from '@/api/mastodon/admin'
+import { uploadMedia } from '@/api/mastodon/media'
+import AdminLayout from '@/components/layout/AdminLayout.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const faviconUploading = ref(false)
+const logoUploading = ref(false)
 
 const loading = ref(true)
 const saving = ref(false)
@@ -15,27 +19,41 @@ const smtpTesting = ref(false)
 const smtpTestResult = ref('')
 
 const settings = ref({
-  // Site Info
   site_title: '',
   site_description: '',
   site_contact_email: '',
   site_contact_username: '',
-  // Branding
   site_favicon_url: '',
   site_logo_url: '',
   site_theme_color: '#6366f1',
-  // Registration
   registration_mode: 'closed',
-  // Limits
   max_toot_chars: '500',
   max_media_attachments: '4',
-  // SMTP
   smtp_host: '',
   smtp_port: '587',
   smtp_username: '',
   smtp_password: '',
   smtp_from_address: '',
+  smtp_secure: 'false',
+  smtp_auth_type: 'auto',
 })
+
+async function uploadImage(event: Event, field: 'site_favicon_url' | 'site_logo_url') {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.[0] || !auth.token) return
+
+  const loadingRef = field === 'site_favicon_url' ? faviconUploading : logoUploading
+  loadingRef.value = true
+  try {
+    const { data } = await uploadMedia(input.files[0], { token: auth.token })
+    settings.value[field] = data.url
+  } catch (e: any) {
+    error.value = e?.message || 'Upload failed'
+  } finally {
+    loadingRef.value = false
+    input.value = ''
+  }
+}
 
 onMounted(async () => {
   try {
@@ -80,8 +98,9 @@ const labelClass = 'block text-sm font-medium mb-1'
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">{{ t('admin.instanceSettings') }}</h1>
+  <AdminLayout>
+  <div class="w-full p-6">
+    <h1 class="text-2xl font-bold mb-6">{{ t('admin_settings.title') }}</h1>
 
     <div v-if="loading" class="text-gray-500">{{ t('common.loading') }}</div>
 
@@ -99,20 +118,20 @@ const labelClass = 'block text-sm font-medium mb-1'
         <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.site_info') }}</h2>
         <div class="space-y-4">
           <div>
-            <label :class="labelClass">site_title</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.site_title') }}</label>
             <input v-model="settings.site_title" :class="inputClass" />
           </div>
           <div>
-            <label :class="labelClass">site_description</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.site_description') }}</label>
             <textarea v-model="settings.site_description" rows="3" :class="inputClass" />
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label :class="labelClass">site_contact_email</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.contact_email') }}</label>
               <input v-model="settings.site_contact_email" type="email" :class="inputClass" />
             </div>
             <div>
-              <label :class="labelClass">site_contact_username</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.contact_username') }}</label>
               <input v-model="settings.site_contact_username" :class="inputClass" />
             </div>
           </div>
@@ -124,15 +143,29 @@ const labelClass = 'block text-sm font-medium mb-1'
         <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.branding') }}</h2>
         <div class="space-y-4">
           <div>
-            <label :class="labelClass">site_favicon_url</label>
-            <input v-model="settings.site_favicon_url" type="url" :class="inputClass" placeholder="https://..." />
+            <label :class="labelClass">{{ t('admin_settings.fields.favicon') }}</label>
+            <div class="flex items-center gap-2">
+              <input v-model="settings.site_favicon_url" type="url" :class="inputClass" class="flex-1" placeholder="https://..." />
+              <label class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap" :class="faviconUploading ? 'opacity-50 pointer-events-none' : ''">
+                {{ faviconUploading ? '...' : t('common.upload') }}
+                <input type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_favicon_url')" />
+              </label>
+              <img v-if="settings.site_favicon_url" :src="settings.site_favicon_url" class="w-8 h-8 rounded object-contain border border-gray-200 dark:border-gray-700" alt="favicon" />
+            </div>
           </div>
           <div>
-            <label :class="labelClass">site_logo_url</label>
-            <input v-model="settings.site_logo_url" type="url" :class="inputClass" placeholder="https://..." />
+            <label :class="labelClass">{{ t('admin_settings.fields.logo') }}</label>
+            <div class="flex items-center gap-2">
+              <input v-model="settings.site_logo_url" type="url" :class="inputClass" class="flex-1" placeholder="https://..." />
+              <label class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap" :class="logoUploading ? 'opacity-50 pointer-events-none' : ''">
+                {{ logoUploading ? '...' : t('common.upload') }}
+                <input type="file" accept="image/*" class="hidden" @change="uploadImage($event, 'site_logo_url')" />
+              </label>
+              <img v-if="settings.site_logo_url" :src="settings.site_logo_url" class="w-8 h-8 rounded object-contain border border-gray-200 dark:border-gray-700" alt="logo" />
+            </div>
           </div>
           <div>
-            <label :class="labelClass">site_theme_color</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.theme_color') }}</label>
             <div class="flex items-center gap-3">
               <input v-model="settings.site_theme_color" type="color" class="h-10 w-14 rounded border border-gray-300 dark:border-gray-600 cursor-pointer" />
               <input v-model="settings.site_theme_color" :class="inputClass" class="!w-40" />
@@ -145,11 +178,11 @@ const labelClass = 'block text-sm font-medium mb-1'
       <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.registration') }}</h2>
         <div>
-          <label :class="labelClass">registration_mode</label>
+          <label :class="labelClass">{{ t('admin_settings.fields.registration_mode') }}</label>
           <select v-model="settings.registration_mode" :class="inputClass" class="!w-64">
-            <option value="open">{{ t('admin.registrationMode.open') }}</option>
-            <option value="approval">{{ t('admin.registrationMode.approval') }}</option>
-            <option value="closed">{{ t('admin.registrationMode.closed') }}</option>
+            <option value="open">{{ t('admin_settings.reg_open') }}</option>
+            <option value="approval">{{ t('admin_settings.reg_approval') }}</option>
+            <option value="closed">{{ t('admin_settings.reg_closed') }}</option>
           </select>
         </div>
       </section>
@@ -159,11 +192,11 @@ const labelClass = 'block text-sm font-medium mb-1'
         <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.limits') }}</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label :class="labelClass">max_toot_chars</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.max_chars') }}</label>
             <input v-model="settings.max_toot_chars" type="number" min="1" :class="inputClass" />
           </div>
           <div>
-            <label :class="labelClass">max_media_attachments</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.max_media') }}</label>
             <input v-model="settings.max_media_attachments" type="number" min="0" :class="inputClass" />
           </div>
         </div>
@@ -175,27 +208,45 @@ const labelClass = 'block text-sm font-medium mb-1'
         <div class="space-y-4">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label :class="labelClass">smtp_host</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_host') }}</label>
               <input v-model="settings.smtp_host" :class="inputClass" placeholder="smtp.example.com" />
             </div>
             <div>
-              <label :class="labelClass">smtp_port</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_port') }}</label>
               <input v-model="settings.smtp_port" type="number" :class="inputClass" />
             </div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label :class="labelClass">smtp_username</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_username') }}</label>
               <input v-model="settings.smtp_username" :class="inputClass" />
             </div>
             <div>
-              <label :class="labelClass">smtp_password</label>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_password') }}</label>
               <input v-model="settings.smtp_password" type="password" :class="inputClass" />
             </div>
           </div>
           <div>
-            <label :class="labelClass">smtp_from_address</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.smtp_from') }}</label>
             <input v-model="settings.smtp_from_address" type="email" :class="inputClass" placeholder="noreply@example.com" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_auth_type') }}</label>
+              <select v-model="settings.smtp_auth_type" :class="inputClass">
+                <option value="auto">Auto</option>
+                <option value="plain">PLAIN</option>
+                <option value="login">LOGIN</option>
+                <option value="cram-md5">CRAM-MD5</option>
+              </select>
+            </div>
+            <div>
+              <label :class="labelClass">{{ t('admin_settings.fields.smtp_secure') }}</label>
+              <select v-model="settings.smtp_secure" :class="inputClass">
+                <option value="false">STARTTLS (port 587)</option>
+                <option value="true">SSL/TLS (port 465)</option>
+              </select>
+            </div>
           </div>
           <div class="flex items-center gap-4">
             <button
@@ -220,9 +271,10 @@ const labelClass = 'block text-sm font-medium mb-1'
           :disabled="saving"
           class="px-8 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-colors disabled:opacity-50"
         >
-          {{ saving ? t('common.loading') : t('admin_settings.save') }}
+          {{ saving ? t('common.loading') : t('common.save') }}
         </button>
       </div>
     </form>
   </div>
+  </AdminLayout>
 </template>

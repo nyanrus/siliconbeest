@@ -5,8 +5,18 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.get('/', async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
-  const title = c.env.INSTANCE_TITLE || domain;
-  const registrationMode = c.env.REGISTRATION_MODE || 'none';
+
+  // Read settings from DB first, fall back to env vars
+  const dbSettings: Record<string, string> = {};
+  const { results: settingsRows } = await c.env.DB.prepare(
+    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'site_contact_email', 'site_contact_username')"
+  ).all();
+  for (const row of settingsRows ?? []) {
+    dbSettings[row.key as string] = row.value as string;
+  }
+
+  const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
+  const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
 
   // Usage stats
   const userCount = await c.env.DB.prepare(

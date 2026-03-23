@@ -6,6 +6,8 @@ interface EmailConfig {
 	username: string;
 	password: string;
 	from: string;
+	secure: boolean;
+	authType: 'plain' | 'login' | 'cram-md5' | 'auto';
 }
 
 /**
@@ -15,12 +17,15 @@ interface EmailConfig {
 async function getEmailConfig(env: any, db?: D1Database): Promise<EmailConfig | null> {
 	// Priority 1: environment variables
 	if (env.SMTP_HOST) {
+		const port = parseInt(env.SMTP_PORT || '587');
 		return {
 			host: env.SMTP_HOST,
-			port: parseInt(env.SMTP_PORT || '587'),
+			port,
 			username: env.SMTP_USER || '',
 			password: env.SMTP_PASS || '',
 			from: env.SMTP_FROM || `noreply@${env.INSTANCE_DOMAIN}`,
+			secure: env.SMTP_SECURE === 'true' || port === 465,
+			authType: (env.SMTP_AUTH_TYPE as EmailConfig['authType']) || 'auto',
 		};
 	}
 
@@ -36,12 +41,15 @@ async function getEmailConfig(env: any, db?: D1Database): Promise<EmailConfig | 
 					map[row.key as string] = row.value as string;
 				}
 				if (map.smtp_host) {
+					const port = parseInt(map.smtp_port || '587');
 					return {
 						host: map.smtp_host,
-						port: parseInt(map.smtp_port || '587'),
-						username: map.smtp_user || '',
+						port,
+						username: map.smtp_username || map.smtp_user || '',
 						password: map.smtp_password || '',
-						from: map.smtp_from || `noreply@${env.INSTANCE_DOMAIN}`,
+						from: map.smtp_from_address || map.smtp_from || `noreply@${env.INSTANCE_DOMAIN}`,
+						secure: map.smtp_secure === 'true' || port === 465,
+						authType: (map.smtp_auth_type as EmailConfig['authType']) || 'auto',
 					};
 				}
 			}
@@ -70,23 +78,44 @@ export async function sendEmail(
 	}
 
 	try {
-		const mailer = await WorkerMailer.connect({
+		const authType: ('plain' | 'login' | 'cram-md5') | ('plain' | 'login' | 'cram-md5')[] =
+			config.authType === 'auto' || !config.authType
+				? ['login', 'plain', 'cram-md5']
+				: config.authType as 'plain' | 'login' | 'cram-md5';
+
+		console.log('[email] SMTP config:', JSON.stringify({
 			host: config.host,
 			port: config.port,
-			credentials: {
-				username: config.username,
-				password: config.password,
-			},
-			authType: 'plain',
-		});
-		const { Email } = await import('worker-mailer');
-		const email = new Email({
-			from: { name: 'SiliconBeest', email: config.from },
-			to: [{ email: to }],
+			secure: config.secure,
+			startTls: !config.secure,
+			username: config.username,
+			password: config.password ? `***${config.password.slice(-4)}` : '(empty)',
+			from: config.from,
+			authType,
+			configAuthType: config.authType,
+			to,
 			subject,
-			html,
-		});
-		await mailer.send(email);
+		}));
+
+		await WorkerMailer.send(
+			{
+				host: config.host,
+				port: config.port,
+				secure: config.secure,
+				startTls: !config.secure,
+				credentials: {
+					username: config.username,
+					password: config.password,
+				},
+				authType,
+			},
+			{
+				from: { name: 'SiliconBeest', email: config.from },
+				to: to,
+				subject,
+				html,
+			},
+		);
 		return true;
 	} catch (err) {
 		console.error('[email] Failed to send email:', err);

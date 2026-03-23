@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "siliconbeest-vue" generated at 2026-03-23T10:59:12.616Z.

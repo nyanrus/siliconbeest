@@ -1,17 +1,33 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import AppShell from '@/components/layout/AppShell.vue'
 import LanguageSelector from '@/components/settings/LanguageSelector.vue'
 
 const { t } = useI18n()
+const router = useRouter()
+const auth = useAuthStore()
 
-const settingSections = [
-  { key: 'profile', name: 'settings-profile' },
-  { key: 'account', name: 'settings-account' },
-  { key: 'appearance', name: 'settings-appearance' },
-  { key: 'notifications', name: 'settings-notifications' },
-  { key: 'filters', name: 'settings-filters' },
-]
+function signOut() {
+  auth.logout()
+  router.push('/login')
+}
+
+const settingSections = computed(() => {
+  const sections = [
+    { key: 'profile', name: 'settings-profile' },
+    { key: 'account', name: 'settings-account' },
+    { key: 'appearance', name: 'settings-appearance' },
+    { key: 'notifications', name: 'settings-notifications' },
+    { key: 'filters', name: 'settings-filters' },
+  ]
+  if (auth.isAdmin) {
+    sections.push({ key: 'admin', name: 'admin-settings' })
+  }
+  return sections
+})
 </script>
 
 <template>
@@ -41,7 +57,7 @@ const settingSections = [
           </div>
 
           <div class="p-3">
-            <button class="w-full py-2 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <button @click="signOut" class="w-full py-2 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
               {{ t('settings.sign_out') }}
             </button>
           </div>

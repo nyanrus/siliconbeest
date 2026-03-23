@@ -40,7 +40,7 @@ const config = computed(() => typeConfig[props.notification.type] ?? { icon: '?'
             {{ notification.account.display_name }}
           </router-link>
           <span class="text-gray-500 dark:text-gray-400 ml-1">
-            {{ t(`notification.type.${notification.type}`) }}
+            {{ t(`notification.${notification.type}`) }}
           </span>
         </p>
       </div>
@@ -48,7 +48,7 @@ const config = computed(() => typeConfig[props.notification.type] ?? { icon: '?'
       <!-- Status preview -->
       <router-link
         v-if="notification.status"
-        :to="`/status/${notification.status.id}`"
+        :to="`/@${notification.account.acct}/${notification.status.id}`"
         class="block text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-1"
         v-html="notification.status.content"
       />

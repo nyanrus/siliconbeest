@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getAdminAccounts, changeRole, sendAdminEmail } from '@/api/mastodon/admin'
 import { apiFetch } from '@/api/client'
+import AdminLayout from '@/components/layout/AdminLayout.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -12,7 +13,7 @@ interface AdminAccount {
   id: string
   username: string
   email: string
-  role: { name: string }
+  role: string | { name: string } | null
   domain: string | null
   created_at: string
   disabled: boolean
@@ -71,7 +72,7 @@ async function handleRoleChange(account: AdminAccount, newRole: string) {
   actionMessage.value = ''
   try {
     await changeRole(auth.token!, account.id, newRole)
-    account.role = { name: newRole }
+    account.role = newRole
     actionMessage.value = t('admin_accounts.role_changed')
   } catch (e: any) {
     actionMessage.value = e?.description || e?.error || t('common.error')
@@ -145,7 +146,8 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto">
+  <AdminLayout>
+  <div class="w-full">
     <h1 class="text-2xl font-bold mb-6">{{ t('admin.accounts') }}</h1>
 
     <!-- Filter tabs -->
@@ -193,7 +195,7 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
             <td class="px-4 py-3 text-gray-600 dark:text-gray-400">{{ account.email || '-' }}</td>
             <td class="px-4 py-3">
               <select
-                :value="account.role?.name || 'user'"
+                :value="typeof account.role === 'string' ? account.role : (account.role?.name || 'user')"
                 @change="handleRoleChange(account, ($event.target as HTMLSelectElement).value)"
                 class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
@@ -298,4 +300,5 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
       </div>
     </Teleport>
   </div>
+  </AdminLayout>
 </template>

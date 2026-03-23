@@ -152,10 +152,26 @@ export const authRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
 });
 
 /**
- * Require the current user to have the `admin` role.
+ * Require the current user to have the `admin` or `moderator` role.
  * Must be used *after* `authRequired`.
  */
 export const adminRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
+  const user = c.get('currentUser');
+  if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+    return c.json(
+      { error: 'This action is not allowed' },
+      403,
+    );
+  }
+
+  await next();
+});
+
+/**
+ * Require the current user to have the `admin` role (not moderator).
+ * For settings, domain blocks, etc. that only admins should access.
+ */
+export const adminOnlyRequired = createMiddleware<MiddlewareEnv>(async (c, next) => {
   const user = c.get('currentUser');
   if (!user || user.role !== 'admin') {
     return c.json(

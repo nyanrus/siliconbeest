@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import type { CredentialAccount, Token } from '@/types/mastodon';
 import { verifyCredentials } from '@/api/mastodon/accounts';
 import { login as apiLogin, register as apiRegister } from '@/api/mastodon/oauth';
+import { useTimelinesStore } from './timelines';
+import { useNotificationsStore } from './notifications';
 
 const TOKEN_KEY = 'siliconbeest_token';
 
@@ -66,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     username: string;
     email: string;
     password: string;
+    agreement?: boolean;
     locale?: string;
     reason?: string;
   }) {
@@ -84,6 +87,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    // Disconnect all streaming connections
+    const timelinesStore = useTimelinesStore();
+    const notificationsStore = useNotificationsStore();
+    timelinesStore.disconnectStream();
+    notificationsStore.disconnectStream();
+
     clearToken();
   }
 

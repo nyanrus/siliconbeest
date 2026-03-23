@@ -42,7 +42,7 @@ const gridClass = computed(() => {
     >
       <img
         v-if="attachment.type === 'image' || attachment.type === 'gifv'"
-        :src="attachment.preview_url"
+        :src="attachment.preview_url ?? attachment.url"
         :alt="attachment.description || t('status.media_no_alt')"
         class="w-full h-full object-cover"
         loading="lazy"

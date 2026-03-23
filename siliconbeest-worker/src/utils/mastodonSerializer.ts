@@ -165,6 +165,7 @@ export function serializeStatus(
 
 export function serializeMediaAttachment(
   row: MediaAttachmentRow,
+  domain?: string,
 ): MastodonMediaAttachment {
   const meta: MediaAttachmentMeta | null =
     row.width != null && row.height != null
@@ -177,11 +178,13 @@ export function serializeMediaAttachment(
         }
       : null;
 
+  const baseUrl = domain ? `https://${domain}/media/` : '';
+
   return {
     id: row.id,
     type: row.type as MastodonMediaAttachment['type'],
-    url: row.file_key,
-    preview_url: row.thumbnail_key ?? null,
+    url: `${baseUrl}${row.file_key}`,
+    preview_url: row.thumbnail_key ? `${baseUrl}${row.thumbnail_key}` : (row.file_key ? `${baseUrl}${row.file_key}` : null),
     remote_url: row.remote_url ?? null,
     description: row.description || null,
     blurhash: row.blurhash ?? null,

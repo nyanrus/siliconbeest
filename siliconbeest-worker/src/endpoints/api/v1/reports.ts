@@ -3,6 +3,8 @@ import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
+import { buildFlagActivity } from '../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -34,7 +36,7 @@ app.post('/', authRequired, async (c) => {
 
   // Verify the target account exists
   const targetAccount = await c.env.DB.prepare(
-    'SELECT id FROM accounts WHERE id = ?1',
+    'SELECT id, domain, uri FROM accounts WHERE id = ?1',
   )
     .bind(body.account_id)
     .first();
@@ -72,6 +74,35 @@ app.post('/', authRequired, async (c) => {
       now,
     )
     .run();
+
+  // Federation: forward report to remote instance if requested
+  if (body.forward && targetAccount.domain) {
+    try {
+      const instanceActorUri = `https://${c.env.INSTANCE_DOMAIN}/actor`;
+      // Resolve status URIs for the report
+      let statusUrisList: string[] = [];
+      if (statusIds.length > 0) {
+        const placeholders = statusIds.map(() => '?').join(',');
+        const { results } = await c.env.DB.prepare(
+          `SELECT uri FROM statuses WHERE id IN (${placeholders})`,
+        ).bind(...statusIds).all();
+        statusUrisList = (results || []).map((r) => r.uri as string);
+      }
+      const targetUri = targetAccount.uri as string;
+      // Deliver to the target instance's shared inbox
+      const targetDomain = targetAccount.domain as string;
+      const instance = await c.env.DB.prepare(
+        'SELECT inbox_url FROM instances WHERE domain = ?1',
+      ).bind(targetDomain).first();
+      const targetInbox = instance?.inbox_url
+        ? (instance.inbox_url as string)
+        : `https://${targetDomain}/inbox`;
+      const activity = buildFlagActivity(instanceActorUri, targetUri, statusUrisList, comment);
+      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), targetInbox, 'instance');
+    } catch (e) {
+      console.error('Federation delivery failed for report forward:', e);
+    }
+  }
 
   return c.json({
     id: reportId,

@@ -76,7 +76,9 @@ app.post('/', async (c) => {
     throw new AppError(422, 'Validation failed', 'Agreement must be accepted');
   }
 
-  const regMode = c.env.REGISTRATION_MODE;
+  // Check registration mode from DB settings first, fall back to env var
+  const dbRegMode = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'registration_mode'").first<{ value: string }>();
+  const regMode = dbRegMode?.value || c.env.REGISTRATION_MODE || 'closed';
   if (regMode === 'none' || regMode === 'closed') {
     throw new AppError(403, 'Registrations are not allowed');
   }

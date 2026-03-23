@@ -83,6 +83,9 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE conversation_accounts ( conversation_id TEXT NOT NULL REFERENCES conversations(id), account_id TEXT NOT NULL REFERENCES accounts(id), last_status_id TEXT, unread INTEGER DEFAULT 0, PRIMARY KEY (conversation_id, account_id) )').run();
   await env.DB.prepare('CREATE INDEX idx_conv_accounts ON conversation_accounts(account_id)').run();
   await env.DB.prepare('CREATE TABLE relays ( id TEXT PRIMARY KEY, inbox_url TEXT NOT NULL UNIQUE, actor_uri TEXT, state TEXT DEFAULT \'idle\', follow_activity_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS emoji_reactions ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), status_id TEXT NOT NULL REFERENCES statuses(id), emoji TEXT NOT NULL, custom_emoji_id TEXT REFERENCES custom_emojis(id), created_at TEXT NOT NULL DEFAULT (datetime(\'now\')), UNIQUE(account_id, status_id, emoji) )').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_emoji_reactions_status ON emoji_reactions(status_id)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_emoji_reactions_account ON emoji_reactions(account_id)').run();
 }
 
 export async function createTestUser(username: string, opts?: { email?: string; role?: string }) {

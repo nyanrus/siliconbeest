@@ -9,10 +9,7 @@ const password = ref('')
 const loading = ref(false)
 const error = ref('')
 
-const emit = defineEmits<{
-  submit: [credentials: { email: string; password: string }]
-  sso: [provider: string]
-}>()
+const emit = defineEmits(['submit', 'sso'])
 
 async function handleSubmit() {
   if (!email.value || !password.value) return

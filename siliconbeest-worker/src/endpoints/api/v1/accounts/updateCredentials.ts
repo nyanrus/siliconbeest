@@ -12,23 +12,61 @@ app.patch('/update_credentials', authRequired, async (c) => {
   const domain = c.env.INSTANCE_DOMAIN;
 
   let body: Record<string, unknown> = {};
+  let avatarFile: File | null = null;
+  let headerFile: File | null = null;
+  const contentType = c.req.header('content-type') || '';
   try {
-    body = await c.req.json();
-  } catch {
-    // Try form data
-    try {
+    if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
       const formData = await c.req.formData();
       for (const [key, value] of formData.entries()) {
-        if (typeof value === 'string') body[key] = value;
+        if (key === 'avatar' && value instanceof File) {
+          avatarFile = value;
+        } else if (key === 'header' && value instanceof File) {
+          headerFile = value;
+        } else if (typeof value === 'string') {
+          if (value === 'true') body[key] = true;
+          else if (value === 'false') body[key] = false;
+          else body[key] = value;
+        }
       }
-    } catch {
-      throw new AppError(422, 'Validation failed', 'Unable to parse request body');
+    } else {
+      body = await c.req.json();
     }
+  } catch {
+    throw new AppError(422, 'Validation failed', 'Unable to parse request body');
   }
 
   const updates: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
+
+  // Upload avatar to R2
+  if (avatarFile) {
+    const ext = avatarFile.name.split('.').pop() || 'png';
+    const key = `avatars/${currentUser.account_id}.${ext}`;
+    await c.env.MEDIA_BUCKET.put(key, avatarFile.stream(), {
+      httpMetadata: { contentType: avatarFile.type },
+    });
+    const avatarUrl = `https://${domain}/media/${key}`;
+    updates.push(`avatar_url = ?${paramIdx++}`);
+    params.push(avatarUrl);
+    updates.push(`avatar_static_url = ?${paramIdx++}`);
+    params.push(avatarUrl);
+  }
+
+  // Upload header to R2
+  if (headerFile) {
+    const ext = headerFile.name.split('.').pop() || 'png';
+    const key = `headers/${currentUser.account_id}.${ext}`;
+    await c.env.MEDIA_BUCKET.put(key, headerFile.stream(), {
+      httpMetadata: { contentType: headerFile.type },
+    });
+    const headerUrl = `https://${domain}/media/${key}`;
+    updates.push(`header_url = ?${paramIdx++}`);
+    params.push(headerUrl);
+    updates.push(`header_static_url = ?${paramIdx++}`);
+    params.push(headerUrl);
+  }
 
   if (body.display_name !== undefined) {
     updates.push(`display_name = ?${paramIdx++}`);

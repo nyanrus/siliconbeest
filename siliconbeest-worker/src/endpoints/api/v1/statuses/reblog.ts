@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -41,7 +41,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
 
   if (existing) {
     // Return the existing reblog
-    const rebloggedStatus = serializeStatus(row as Record<string, unknown>, domain);
+    const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id);
     rebloggedStatus.reblogged = true;
     return c.json({
       id: existing.id as string,
@@ -112,7 +112,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
     c.env.DB.prepare('UPDATE accounts SET statuses_count = statuses_count + 1 WHERE id = ?1').bind(currentUser.account_id),
   ]);
 
-  const rebloggedStatus = serializeStatus(row as Record<string, unknown>, domain);
+  const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id);
   rebloggedStatus.reblogged = true;
   rebloggedStatus.reblogs_count += 1;
 

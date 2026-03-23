@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
-import { authRequired, adminRequired } from '../../../../middleware/auth';
+import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 

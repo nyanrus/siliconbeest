@@ -157,6 +157,7 @@ export interface APActivity {
   published?: string;
   to?: APOneOrMany<string>;
   cc?: APOneOrMany<string>;
+  content?: string | null;
   signature?: APSignature;
 }
 

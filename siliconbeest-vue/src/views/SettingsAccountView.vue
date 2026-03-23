@@ -65,7 +65,7 @@ async function handleChangePassword() {
         {{ error }}
       </div>
 
-      <form @submit.prevent="handleChangePassword" class="space-y-4 max-w-md">
+      <form @submit.prevent="handleChangePassword" class="space-y-4 max-w-xl">
         <div>
           <label for="current-password" class="block text-sm font-medium mb-1">{{ t('passwords.current_password') }}</label>
           <input

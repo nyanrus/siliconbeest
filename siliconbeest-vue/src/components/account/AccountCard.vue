@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import type { Relationship } from '@/types/mastodon'
+import { followAccount, unfollowAccount } from '@/api/mastodon/accounts'
+import { useAuthStore } from '@/stores/auth'
+import { useAccountsStore } from '@/stores/accounts'
 import Avatar from '../common/Avatar.vue'
 import FollowButton from './FollowButton.vue'
 
 const { t } = useI18n()
+const auth = useAuthStore()
+const accountsStore = useAccountsStore()
 
-defineProps<{
+const props = defineProps<{
   account: {
     id: string
     avatar: string
@@ -14,7 +20,21 @@ defineProps<{
     note?: string
   }
   showFollowButton?: boolean
+  relationship?: Relationship
 }>()
+
+async function handleToggle() {
+  if (!auth.token) return
+  const rel = accountsStore.getRelationship(props.account.id)
+  try {
+    const { data } = rel?.following
+      ? await unfollowAccount(props.account.id, auth.token)
+      : await followAccount(props.account.id, auth.token)
+    accountsStore.updateRelationship(data)
+  } catch {
+    // silently fail
+  }
+}
 </script>
 
 <template>
@@ -33,7 +53,11 @@ defineProps<{
     <FollowButton
       v-if="showFollowButton"
       :account-id="account.id"
+      :following="accountsStore.getRelationship(account.id)?.following"
+      :requested="accountsStore.getRelationship(account.id)?.requested"
+      :blocked="accountsStore.getRelationship(account.id)?.blocking"
       class="flex-shrink-0"
+      @toggle="handleToggle"
     />
   </div>
 </template>

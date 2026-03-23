@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -11,6 +12,7 @@ defineProps<{
   favourited?: boolean
   reblogged?: boolean
   bookmarked?: boolean
+  isOwnStatus?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -19,7 +21,29 @@ const emit = defineEmits<{
   favourite: [id: string]
   bookmark: [id: string]
   share: [id: string]
+  edit: [id: string]
+  delete: [id: string]
 }>()
+
+const showMenu = ref(false)
+
+function toggleMenu() {
+  showMenu.value = !showMenu.value
+}
+
+function closeMenu() {
+  showMenu.value = false
+}
+
+function handleEdit(id: string) {
+  closeMenu()
+  emit('edit', id)
+}
+
+function handleDelete(id: string) {
+  closeMenu()
+  emit('delete', id)
+}
 
 function formatCount(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
@@ -89,5 +113,38 @@ function formatCount(n: number): string {
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
     </button>
+
+    <!-- More menu (only for own statuses) -->
+    <div v-if="isOwnStatus" class="relative">
+      <button
+        @click="toggleMenu"
+        class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+        :aria-label="t('status.more_actions')"
+      >
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
+      </button>
+
+      <!-- Dropdown -->
+      <div
+        v-if="showMenu"
+        class="absolute right-0 bottom-full mb-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
+      >
+        <div class="fixed inset-0 z-[-1]" @click="closeMenu" />
+        <button
+          @click="handleEdit(statusId)"
+          class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          {{ t('status.edit') }}
+        </button>
+        <button
+          @click="handleDelete(statusId)"
+          class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          {{ t('status.delete_action') }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>

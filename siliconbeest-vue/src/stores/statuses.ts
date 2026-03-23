@@ -9,7 +9,9 @@ import {
   bookmarkStatus,
   unbookmarkStatus,
   deleteStatus as apiDeleteStatus,
+  editStatus as apiEditStatus,
 } from '@/api/mastodon/statuses';
+import type { CreateStatusParams } from '@/api/mastodon/statuses';
 import { useAuthStore } from './auth';
 
 export const useStatusesStore = defineStore('statuses', () => {
@@ -126,6 +128,15 @@ export const useStatusesStore = defineStore('statuses', () => {
     cache.value.delete(id);
   }
 
+  async function editStatus(id: string, params: CreateStatusParams) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+
+    const { data } = await apiEditStatus(id, params, auth.token);
+    cacheStatus(data);
+    return data;
+  }
+
   return {
     cache,
     cacheStatus,
@@ -136,5 +147,6 @@ export const useStatusesStore = defineStore('statuses', () => {
     toggleReblog,
     toggleBookmark,
     deleteStatus,
+    editStatus,
   };
 });

@@ -104,6 +104,18 @@
 	  {
 	    "pattern": "siliconbeest.sjang.dev/nodeinfo/*",
 	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/media/*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/actor",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/healthz",
+	    "zone_name": "sjang.dev"
 	  }
 	]
 }

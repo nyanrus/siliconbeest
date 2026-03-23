@@ -49,7 +49,7 @@ app.post('/', authRequired, async (c) => {
   }
 
   const mediaId = generateUlid();
-  const fileKey = `media/${currentUser.account_id}/${mediaId}.${ext}`;
+  const fileKey = `${currentUser.account_id}/${mediaId}.${ext}`;
   const now = new Date().toISOString();
   const type = mediaTypeFromMime(contentType);
 

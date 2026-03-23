@@ -32,6 +32,11 @@ const router = createRouter({
       component: () => import('@/views/AboutView.vue'),
     },
     {
+      path: '/about/more',
+      name: 'about-more',
+      component: () => import('@/views/AboutView.vue'),
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('@/views/SearchView.vue'),
@@ -201,6 +206,11 @@ const router = createRouter({
           name: 'admin-relays',
           component: () => import('@/views/AdminRelaysView.vue'),
         },
+        {
+          path: 'custom-emojis',
+          name: 'admin-custom-emojis',
+          component: () => import('@/views/AdminCustomEmojisView.vue'),
+        },
       ],
     },
 
@@ -217,6 +227,15 @@ const router = createRouter({
       component: () => import('@/views/StatusDetailView.vue'),
       props: true,
     },
+    // Handle %40 encoded @ in URLs (direct browser access)
+    {
+      path: '/%40:acct',
+      redirect: (to) => ({ name: 'profile', params: { acct: to.params.acct } }),
+    },
+    {
+      path: '/%40:acct/:statusId',
+      redirect: (to) => ({ name: 'status-detail', params: { acct: to.params.acct, statusId: to.params.statusId } }),
+    },
 
     // 404
     {
@@ -225,6 +244,14 @@ const router = createRouter({
       component: () => import('@/views/NotFoundView.vue'),
     },
   ],
+});
+
+// Handle chunk load failures after deployments (hash mismatch)
+router.onError((error, to) => {
+  const chunkFailedMessage = /Loading chunk|Failed to fetch dynamically imported module|import/i;
+  if (chunkFailedMessage.test(error.message)) {
+    window.location.href = to.fullPath;
+  }
 });
 
 export default router;

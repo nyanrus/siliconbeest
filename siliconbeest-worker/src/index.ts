@@ -48,12 +48,17 @@ import tags from './endpoints/api/v1/tags';
 import suggestions from './endpoints/api/v1/suggestions';
 import announcements from './endpoints/api/v1/announcements';
 import rules from './endpoints/api/v1/rules';
+import trends from './endpoints/api/v1/trends/index';
 
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
+import authLogin from './endpoints/api/v1/auth/login';
 
 // -- Account extras --
 import changePassword from './endpoints/api/v1/accounts/change_password';
+
+// -- Instance v1 --
+import instanceV1 from './endpoints/api/v1/instance';
 
 // -- Admin API --
 import admin from './endpoints/api/v1/admin/index';
@@ -63,6 +68,9 @@ import instanceV2 from './endpoints/api/v2/instance';
 import searchV2 from './endpoints/api/v2/search';
 import mediaV2 from './endpoints/api/v2/media';
 import filters from './endpoints/api/v1/filters/index';
+
+// -- Media serving --
+import mediaServe from './endpoints/media';
 
 // -- ActivityPub --
 import apActor from './endpoints/activitypub/actor';
@@ -142,8 +150,11 @@ app.route('/api/v1/lists', lists);
 app.route('/api/v1/tags', tags);
 app.route('/api/v1/suggestions', suggestions);
 app.route('/api/v1/announcements', announcements);
+app.route('/api/v1/instance', instanceV1);
 app.route('/api/v1/instance/rules', rules);
+app.route('/api/v1/trends', trends);
 app.route('/api/v1/auth/passwords', passwords);
+app.route('/api/v1/auth/login', authLogin);
 app.route('/api/v1/accounts', changePassword);
 app.route('/api/v1/admin', admin);
 
@@ -168,6 +179,34 @@ app.route('/users', apFollowers);
 app.route('/users', apFollowing);
 app.route('/actor', apInstanceActor);
 app.route('/inbox', apSharedInbox);
+
+// ---------------------------------------------------------------------------
+// Media serving (R2)
+// ---------------------------------------------------------------------------
+
+app.route('/media', mediaServe);
+
+// ---------------------------------------------------------------------------
+// Internal — Stream event delivery (called by queue consumer via service binding)
+// ---------------------------------------------------------------------------
+
+app.post('/internal/stream-event', async (c) => {
+  const body = await c.req.json<{
+    userId: string;
+    event: string;
+    payload: string;
+    stream?: string[];
+  }>();
+
+  const { sendStreamEvent } = await import('./services/streaming');
+  await sendStreamEvent(c.env.STREAMING_DO, body.userId, {
+    event: body.event,
+    payload: body.payload,
+    stream: body.stream,
+  });
+
+  return c.json({ ok: true });
+});
 
 // ---------------------------------------------------------------------------
 // Fallback — Mastodon-compatible 404

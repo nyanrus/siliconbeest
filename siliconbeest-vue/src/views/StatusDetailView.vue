@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
+import { getStatus, getStatusContext, createStatus } from '@/api/mastodon/statuses'
+import { useAuthStore } from '@/stores/auth'
+import { useStatusesStore } from '@/stores/statuses'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
 import StatusComposer from '@/components/status/StatusComposer.vue'
@@ -10,39 +13,67 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+const statusesStore = useStatusesStore()
 
 const status = ref<Status | null>(null)
 const ancestors = ref<Status[]>([])
 const descendants = ref<Status[]>([])
 const loading = ref(true)
+const error = ref<string | null>(null)
 
 async function loadThread() {
   loading.value = true
-  const id = route.params.id as string
+  error.value = null
+  const id = route.params.statusId as string
+  if (!id) return
+
   try {
-    // TODO: fetch from API
-    // status.value = await api.getStatus(id)
-    // const context = await api.getStatusContext(id)
-    // ancestors.value = context.ancestors
-    // descendants.value = context.descendants
+    const { data: statusData } = await getStatus(id, auth.token ?? undefined)
+    status.value = statusData
+    statusesStore.cacheStatus(statusData)
+
+    const { data: context } = await getStatusContext(id, auth.token ?? undefined)
+    ancestors.value = context.ancestors
+    descendants.value = context.descendants
+  } catch (e) {
+    error.value = (e as Error).message
+    status.value = null
   } finally {
     loading.value = false
   }
 }
 
 async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
-  // TODO: post reply
-  console.log('reply', payload)
+  if (!auth.token || !status.value) return
+  try {
+    const { data } = await createStatus({
+      status: payload.content,
+      in_reply_to_id: status.value.id,
+      visibility: (payload.visibility as any) ?? status.value.visibility,
+      sensitive: payload.sensitive,
+      spoiler_text: payload.spoiler_text,
+    }, auth.token)
+    statusesStore.cacheStatus(data)
+    descendants.value.push(data)
+  } catch (e) {
+    // silently fail
+  }
 }
 
 onMounted(loadThread)
+
+watch(() => route.params.statusId, (newId) => {
+  if (newId) loadThread()
+})
 </script>
 
 <template>
   <AppShell>
     <div>
       <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
-        <button @click="$router.back()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
+        <button @click="router.back()" class="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" :aria-label="t('common.back')">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <h1 class="text-xl font-bold">{{ t('status.thread') }}</h1>
@@ -67,7 +98,7 @@ onMounted(loadThread)
       </template>
 
       <div v-else class="p-8 text-center text-gray-500 dark:text-gray-400">
-        {{ t('status.not_found') }}
+        {{ error || t('status.not_found') }}
       </div>
     </div>
   </AppShell>

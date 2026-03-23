@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../../utils/pagination';
 import { serializeAccount, serializeStatus } from '../../../../utils/mastodonSerializer';
+import { enrichStatuses } from '../../../../utils/statusEnrichment';
 import type { AccountRow, StatusRow } from '../../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -49,6 +50,9 @@ app.get('/', authRequired, async (c) => {
 
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
+  const statusIds = (results ?? []).map((r: any) => r.id as string);
+  const enrichments = await enrichStatuses(c.env.DB, c.env.INSTANCE_DOMAIN, statusIds, account.id);
+
   const statuses = (results ?? []).map((row: any) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
@@ -62,7 +66,14 @@ app.get('/', authRequired, async (c) => {
       updated_at: row.a_created_at, suspended_at: row.a_suspended_at,
       silenced_at: null, memorial: row.a_memorial, moved_to_account_id: row.a_moved_to_account_id,
     };
-    return serializeStatus(row as StatusRow, { account: serializeAccount(accountRow) });
+    const e = enrichments.get(row.id);
+    return serializeStatus(row as StatusRow, {
+      account: serializeAccount(accountRow),
+      mediaAttachments: e?.mediaAttachments,
+      favourited: e?.favourited,
+      reblogged: e?.reblogged,
+      bookmarked: e?.bookmarked,
+    });
   });
 
   // Reverse when using min_id (ASC query)

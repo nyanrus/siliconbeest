@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { STATUS_JOIN_SQL, serializeStatus } from './fetch';
+import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
+import { buildLikeActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
+import { enqueueDelivery } from '../../../../federation/deliveryManager';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -29,7 +31,27 @@ app.post('/:id/unfavourite', authRequired, async (c) => {
     ]);
   }
 
-  const status = serializeStatus(row as Record<string, unknown>, domain);
+  // Federation: deliver Undo(Like) if status author is remote
+  if (existing && row.account_domain) {
+    try {
+      const currentAccount = await c.env.DB.prepare(
+        'SELECT uri FROM accounts WHERE id = ?1',
+      ).bind(currentAccountId).first();
+      if (currentAccount) {
+        const actorUri = currentAccount.uri as string;
+        const statusUri = row.uri as string;
+        const likeActivity = buildLikeActivity(actorUri, statusUri);
+        const activity = buildUndoActivity(actorUri, likeActivity);
+        const authorUri = row.account_uri as string;
+        const authorInbox = `${authorUri}/inbox`;
+        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), authorInbox, currentAccountId);
+      }
+    } catch (e) {
+      console.error('Federation delivery failed for unfavourite:', e);
+    }
+  }
+
+  const status = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentAccountId);
   status.favourited = false;
   if (existing) {
     status.favourites_count = Math.max(0, status.favourites_count - 1);

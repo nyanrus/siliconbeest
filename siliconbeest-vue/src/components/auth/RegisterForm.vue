@@ -37,6 +37,7 @@ function handleSubmit() {
     username: username.value,
     email: email.value,
     password: password.value,
+    agreement: true,
   })
   loading.value = false
 }

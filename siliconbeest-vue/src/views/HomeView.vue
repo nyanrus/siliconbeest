@@ -1,37 +1,58 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTimelinesStore } from '@/stores/timelines'
+import { useStatusesStore } from '@/stores/statuses'
+import { useAuthStore } from '@/stores/auth'
+import { useComposeStore } from '@/stores/compose'
 import type { Status } from '@/types/mastodon'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusComposer from '@/components/status/StatusComposer.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 
 const { t } = useI18n()
+const timelinesStore = useTimelinesStore()
+const statusesStore = useStatusesStore()
+const auth = useAuthStore()
+const compose = useComposeStore()
 
-const statuses = ref<Status[]>([])
-const loading = ref(false)
-const done = ref(false)
-const hasNewPosts = ref(false)
+const timeline = computed(() => timelinesStore.getTimeline('home'))
+
+const statuses = computed(() => {
+  return timeline.value.statusIds
+    .map((id) => statusesStore.getCached(id))
+    .filter((s): s is Status => !!s)
+})
+
+const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
 
 async function loadTimeline() {
-  if (loading.value || done.value) return
-  loading.value = true
-  try {
-    // TODO: fetch from API
-    // const res = await api.getHomeTimeline({ max_id: lastId })
-  } finally {
-    loading.value = false
-  }
+  if (!auth.token) return
+  await timelinesStore.fetchTimeline('home', { token: auth.token })
+}
+
+async function loadMore() {
+  if (!auth.token) return
+  await timelinesStore.fetchMore('home', { token: auth.token })
 }
 
 async function handleCompose(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string }) {
-  // TODO: post to API
-  console.log('compose', payload)
+  if (!auth.token) return
+  compose.text = payload.content
+  if (payload.visibility) compose.visibility = payload.visibility as any
+  if (payload.sensitive) compose.sensitive = payload.sensitive
+  if (payload.spoiler_text) {
+    compose.contentWarning = payload.spoiler_text
+    compose.showContentWarning = true
+  }
+  await compose.publish()
 }
 
-onMounted(() => {
-  loadTimeline()
-})
+function showNew() {
+  timelinesStore.showNewStatuses('home')
+}
+
+onMounted(loadTimeline)
 </script>
 
 <template>
@@ -45,14 +66,20 @@ onMounted(() => {
       <!-- Composer -->
       <StatusComposer @submit="handleCompose" />
 
+      <!-- Error -->
+      <div v-if="timeline.error" class="p-4 text-center text-red-500">
+        {{ timeline.error }}
+      </div>
+
       <!-- Feed -->
       <TimelineFeed
         :statuses="statuses"
-        :loading="loading"
-        :done="done"
+        :loading="timeline.loading || timeline.loadingMore"
+        :done="!timeline.hasMore"
         :has-new-posts="hasNewPosts"
-        @load-more="loadTimeline"
-        @load-new="hasNewPosts = false"
+        :new-posts-count="timeline.newStatusIds.length"
+        @load-more="loadMore"
+        @load-new="showNew"
       />
     </div>
   </AppShell>

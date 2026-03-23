@@ -75,16 +75,13 @@ function generateId() {
   return time + rand;
 }
 
-// bcrypt-compatible hash using scrypt as fallback for environments without bcrypt
-// We use a simple approach: generate a hash that the app can verify
+// PBKDF2 hash matching the Workers runtime format
 async function hashPassword(password) {
-  // Use Node.js built-in scrypt wrapped in a bcrypt-like format
+  const salt = crypto.randomBytes(16);
   return new Promise((resolve, reject) => {
-    const salt = crypto.randomBytes(16);
-    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+    crypto.pbkdf2(password, salt, 100000, 32, 'sha256', (err, derivedKey) => {
       if (err) reject(err);
-      // Store as \\\$scrypt\\\$ prefix so the app knows the algorithm
-      const hash = '\$scrypt\$' + salt.toString('hex') + '\$' + derivedKey.toString('hex');
+      const hash = 'pbkdf2:' + salt.toString('hex') + ':' + derivedKey.toString('hex');
       resolve(hash);
     });
   });

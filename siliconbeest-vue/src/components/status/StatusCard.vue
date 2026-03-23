@@ -1,17 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
+import { useStatusesStore } from '@/stores/statuses'
+import { useTimelinesStore } from '@/stores/timelines'
+import { useAuthStore } from '@/stores/auth'
 import Avatar from '../common/Avatar.vue'
 import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
 
 const { t } = useI18n()
+const router = useRouter()
+const statusesStore = useStatusesStore()
+const timelinesStore = useTimelinesStore()
+const authStore = useAuthStore()
 
 const props = defineProps<{
   status: Status
 }>()
+
+const isEditing = ref(false)
+const editText = ref('')
+const editSpoilerText = ref('')
+const editSensitive = ref(false)
+const editLoading = ref(false)
+
+const isOwnStatus = computed(() => {
+  return authStore.currentUser?.id === props.status.account.id
+})
 
 const relativeTime = computed(() => {
   const date = new Date(props.status.created_at)
@@ -25,6 +43,77 @@ const relativeTime = computed(() => {
   const diffDays = Math.floor(diffHours / 24)
   return t('time.days_ago', { n: diffDays })
 })
+
+function handleFavourite() {
+  statusesStore.toggleFavourite(props.status)
+}
+
+function handleReblog() {
+  statusesStore.toggleReblog(props.status)
+}
+
+function handleBookmark() {
+  statusesStore.toggleBookmark(props.status)
+}
+
+function handleReply() {
+  router.push(`/@${props.status.account.acct}/${props.status.id}`)
+}
+
+async function handleShare() {
+  const url = props.status.url || `${window.location.origin}/@${props.status.account.acct}/${props.status.id}`
+  if (navigator.share) {
+    try {
+      await navigator.share({ url })
+    } catch {
+      // User cancelled or share failed
+    }
+  } else {
+    await navigator.clipboard.writeText(url)
+  }
+}
+
+function handleEdit() {
+  // Use text field if available, otherwise strip HTML from content
+  editText.value = props.status.text || ''
+  editSpoilerText.value = props.status.spoiler_text || ''
+  editSensitive.value = props.status.sensitive || false
+  isEditing.value = true
+}
+
+function cancelEdit() {
+  isEditing.value = false
+  editText.value = ''
+  editSpoilerText.value = ''
+  editSensitive.value = false
+}
+
+async function submitEdit() {
+  if (editLoading.value) return
+  editLoading.value = true
+  try {
+    await statusesStore.editStatus(props.status.id, {
+      status: editText.value,
+      spoiler_text: editSpoilerText.value || undefined,
+      sensitive: editSensitive.value,
+    })
+    isEditing.value = false
+  } catch {
+    // Error handling - keep edit mode open
+  } finally {
+    editLoading.value = false
+  }
+}
+
+async function handleDelete() {
+  if (!confirm(t('status.delete_confirm'))) return
+  try {
+    await statusesStore.deleteStatus(props.status.id)
+    timelinesStore.removeStatus(props.status.id)
+  } catch {
+    // Error handling
+  }
+}
 </script>
 
 <template>
@@ -49,21 +138,74 @@ const relativeTime = computed(() => {
           <time :datetime="status.created_at" class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
             {{ relativeTime }}
           </time>
+          <span
+            v-if="status.visibility && status.visibility !== 'public'"
+            class="text-xs ml-1"
+            :class="{
+              'text-blue-500 dark:text-blue-400': status.visibility === 'unlisted',
+              'text-green-500 dark:text-green-400': status.visibility === 'private',
+              'text-yellow-500 dark:text-yellow-400': status.visibility === 'direct',
+            }"
+            :title="t(`status.visibility_${status.visibility}`)"
+          >
+            <template v-if="status.visibility === 'unlisted'">🔓</template>
+            <template v-else-if="status.visibility === 'private'">🔒</template>
+            <template v-else-if="status.visibility === 'direct'">✉️</template>
+          </span>
+          <span v-if="status.edited_at" class="text-gray-400 dark:text-gray-500 text-xs ml-1" :title="status.edited_at">
+            ({{ t('status.edited') }})
+          </span>
         </div>
 
-        <!-- Content -->
-        <StatusContent
-          :content="status.content"
-          :spoiler-text="status.spoiler_text"
-          :sensitive="status.sensitive"
-        />
+        <!-- Edit mode -->
+        <div v-if="isEditing" class="mt-2">
+          <div class="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">
+            {{ t('status.editing') }}
+          </div>
+          <textarea
+            v-model="editText"
+            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            rows="3"
+          />
+          <input
+            v-if="status.spoiler_text"
+            v-model="editSpoilerText"
+            type="text"
+            :placeholder="t('compose.cw_placeholder')"
+            class="w-full mt-1 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+          <div class="flex items-center gap-2 mt-2">
+            <button
+              @click="submitEdit"
+              :disabled="editLoading || !editText.trim()"
+              class="px-3 py-1 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ t('common.save') }}
+            </button>
+            <button
+              @click="cancelEdit"
+              class="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              {{ t('common.cancel') }}
+            </button>
+          </div>
+        </div>
 
-        <!-- Media -->
-        <MediaGallery
-          v-if="status.media_attachments?.length"
-          :attachments="status.media_attachments"
-          class="mt-2"
-        />
+        <!-- Normal content display -->
+        <template v-else>
+          <StatusContent
+            :content="status.content"
+            :spoiler-text="status.spoiler_text"
+            :sensitive="status.sensitive"
+          />
+
+          <!-- Media -->
+          <MediaGallery
+            v-if="status.media_attachments?.length"
+            :attachments="status.media_attachments"
+            class="mt-2"
+          />
+        </template>
 
         <!-- Actions -->
         <StatusActions
@@ -74,7 +216,15 @@ const relativeTime = computed(() => {
           :favourited="status.favourited"
           :reblogged="status.reblogged"
           :bookmarked="status.bookmarked"
+          :is-own-status="isOwnStatus"
           class="mt-2"
+          @favourite="handleFavourite"
+          @reblog="handleReblog"
+          @bookmark="handleBookmark"
+          @reply="handleReply"
+          @share="handleShare"
+          @edit="handleEdit"
+          @delete="handleDelete"
         />
       </div>
     </div>
