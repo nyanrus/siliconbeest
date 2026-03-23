@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Relationship } from '@/types/mastodon'
 import Avatar from '../common/Avatar.vue'
 import FollowButton from './FollowButton.vue'
+import ReportDialog from '../common/ReportDialog.vue'
 
 const { t } = useI18n()
 
@@ -27,6 +28,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   'toggle-follow': []
 }>()
+
+const showMoreMenu = ref(false)
+const showReportDialog = ref(false)
+
+function openReport() {
+  showMoreMenu.value = false
+  showReportDialog.value = true
+}
 
 const remoteDomain = computed(() => {
   const acct = props.account.acct
@@ -73,6 +82,29 @@ function handleToggle() {
             :blocked="relationship?.blocking"
             @toggle="handleToggle"
           />
+          <!-- More menu for non-own accounts -->
+          <div v-if="!isOwn" class="relative">
+            <button
+              @click="showMoreMenu = !showMoreMenu"
+              class="p-2 rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              :aria-label="t('status.more_actions')"
+            >
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></svg>
+            </button>
+            <div
+              v-if="showMoreMenu"
+              class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 py-1"
+            >
+              <div class="fixed inset-0 z-[-1]" @click="showMoreMenu = false" />
+              <button
+                @click="openReport"
+                class="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" /></svg>
+                {{ t('profile.report_user') }}
+              </button>
+            </div>
+          </div>
           <router-link
             v-if="isOwn"
             to="/settings/profile"
@@ -132,5 +164,13 @@ function handleToggle() {
         </router-link>
       </div>
     </div>
+
+    <!-- Report dialog -->
+    <ReportDialog
+      :open="showReportDialog"
+      :account-id="account.id"
+      :account-acct="account.acct"
+      @close="showReportDialog = false"
+    />
   </div>
 </template>

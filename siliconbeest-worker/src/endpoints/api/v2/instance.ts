@@ -99,7 +99,7 @@ app.get('/', async (c) => {
       url: null,
     },
     contact: {
-      email: `admin@${domain}`,
+      email: dbSettings.site_contact_email || `admin@${domain}`,
       account: null,
     },
     rules,

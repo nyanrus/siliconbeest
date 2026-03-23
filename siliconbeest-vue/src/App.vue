@@ -61,18 +61,7 @@ onMounted(async () => {
   <RouterView />
 
   <!-- Global compose modal -->
-  <Modal :open="ui.composeModalOpen" @close="ui.closeComposeModal()">
-    <div class="bg-white dark:bg-gray-900 rounded-2xl w-[90vw] sm:w-[600px] lg:w-[640px] mx-auto">
-      <div class="flex items-center justify-between px-4 pt-4 pb-2">
-        <h2 class="text-lg font-bold">{{ $t('compose.title') }}</h2>
-        <button
-          @click="ui.closeComposeModal()"
-          class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
-        >
-          ✕
-        </button>
-      </div>
-      <StatusComposer @submit="handleGlobalCompose" />
-    </div>
+  <Modal :open="ui.composeModalOpen" :title="$t('compose.title')" @close="ui.closeComposeModal()">
+    <StatusComposer @submit="handleGlobalCompose" />
   </Modal>
 </template>

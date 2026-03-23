@@ -94,7 +94,7 @@ function submit() {
 </script>
 
 <template>
-  <form @submit.prevent="submit" class="p-4 border-b border-gray-200 dark:border-gray-700">
+  <form @submit.prevent="submit" class="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
     <!-- Hidden file input -->
     <input
       ref="fileInput"

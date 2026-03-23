@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode (toggleable via JS adding .dark to <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Base styles for dark mode */
 @layer base {
   html {

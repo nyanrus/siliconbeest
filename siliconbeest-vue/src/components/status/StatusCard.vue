@@ -12,6 +12,7 @@ import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
 import PreviewCard from './PreviewCard.vue'
+import ReportDialog from '../common/ReportDialog.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -28,6 +29,14 @@ const editText = ref('')
 const editSpoilerText = ref('')
 const editSensitive = ref(false)
 const editLoading = ref(false)
+
+const showReportDialog = ref(false)
+const reportTarget = ref<{ accountId: string; accountAcct: string; statusId: string } | null>(null)
+
+function handleReport(payload: { accountId: string; accountAcct: string; statusId: string }) {
+  reportTarget.value = payload
+  showReportDialog.value = true
+}
 
 const isOwnStatus = computed(() => {
   return authStore.currentUser?.id === props.status.account.id
@@ -286,6 +295,8 @@ async function handleDelete() {
           :reblogged="status.reblogged"
           :bookmarked="status.bookmarked"
           :is-own-status="isOwnStatus"
+          :account-id="status.account.id"
+          :account-acct="status.account.acct"
           class="mt-2"
           @favourite="handleFavourite"
           @reblog="handleReblog"
@@ -294,8 +305,18 @@ async function handleDelete() {
           @share="handleShare"
           @edit="handleEdit"
           @delete="handleDelete"
+          @report="handleReport"
         />
       </div>
     </div>
+    <!-- Report dialog -->
+    <ReportDialog
+      v-if="reportTarget"
+      :open="showReportDialog"
+      :account-id="reportTarget.accountId"
+      :account-acct="reportTarget.accountAcct"
+      :status-id="reportTarget.statusId"
+      @close="showReportDialog = false"
+    />
   </article>
 </template>
