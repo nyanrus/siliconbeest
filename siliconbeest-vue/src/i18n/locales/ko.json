@@ -171,6 +171,7 @@
     "follow": "{user}님이 회원님을 팔로우했습니다",
     "followRequest": "{user}님이 팔로우를 요청했습니다",
     "favourite": "{user}님이 회원님의 게시물을 좋아합니다",
+    "emoji_reaction": "{user}님이 회원님의 게시물에 리액션했습니다",
     "reblog": "{user}님이 회원님의 게시물을 부스트했습니다",
     "poll": "참여한 투표가 종료되었습니다",
     "update": "{user}님이 게시물을 수정했습니다",

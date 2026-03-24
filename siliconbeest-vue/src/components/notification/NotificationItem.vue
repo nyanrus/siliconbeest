@@ -13,20 +13,42 @@ const props = defineProps<{
 const typeConfig: Record<string, { icon: string; color: string }> = {
   follow: { icon: '👤', color: 'text-indigo-600 dark:text-indigo-400' },
   favourite: { icon: '⭐', color: 'text-yellow-500' },
+  emoji_reaction: { icon: '😀', color: 'text-yellow-500' },
   reblog: { icon: '🔄', color: 'text-green-600 dark:text-green-400' },
   mention: { icon: '💬', color: 'text-blue-600 dark:text-blue-400' },
   poll: { icon: '📊', color: 'text-purple-600 dark:text-purple-400' },
   follow_request: { icon: '🔔', color: 'text-orange-500' },
 }
 
-const config = computed(() => typeConfig[props.notification.type] ?? { icon: '?', color: 'text-gray-500' })
+// For emoji_reaction, use the actual emoji from the notification
+const reactionEmoji = computed(() => (props.notification as any).emoji as string | undefined)
+
+const config = computed(() => {
+  const base = typeConfig[props.notification.type] ?? { icon: '?', color: 'text-gray-500' }
+  // Override icon with actual emoji for reactions
+  if (props.notification.type === 'emoji_reaction' && reactionEmoji.value) {
+    return { ...base, icon: reactionEmoji.value }
+  }
+  return base
+})
 </script>
 
 <template>
   <div class="flex gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
     <!-- Type icon -->
     <div class="flex-shrink-0 w-10 flex justify-end">
-      <span :class="config.color" class="text-lg" aria-hidden="true">{{ config.icon }}</span>
+      <span :class="config.color" class="text-lg" aria-hidden="true">
+        <template v-if="notification.type === 'emoji_reaction' && reactionEmoji?.startsWith(':')">
+          <img
+            v-if="(notification as any).emoji_url"
+            :src="(notification as any).emoji_url"
+            :alt="reactionEmoji"
+            class="inline-block w-5 h-5"
+          />
+          <span v-else>{{ reactionEmoji }}</span>
+        </template>
+        <template v-else>{{ config.icon }}</template>
+      </span>
     </div>
 
     <div class="flex-1 min-w-0">

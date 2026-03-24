@@ -90,6 +90,8 @@ export interface CreateNotificationMessage {
   notificationType: string;
   /** Related status ID (optional) */
   statusId?: string;
+  /** Emoji for emoji_reaction notifications */
+  emoji?: string;
 }
 
 export interface ProcessMediaMessage {

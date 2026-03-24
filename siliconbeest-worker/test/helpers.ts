@@ -35,7 +35,7 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE mutes ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), target_account_id TEXT NOT NULL REFERENCES accounts(id), hide_notifications INTEGER DEFAULT 1, expires_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(account_id, target_account_id) )').run();
   await env.DB.prepare('CREATE TABLE bookmarks ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), status_id TEXT NOT NULL REFERENCES statuses(id), created_at TEXT NOT NULL, UNIQUE(account_id, status_id) )').run();
   await env.DB.prepare('CREATE INDEX idx_bookmarks_account ON bookmarks(account_id, created_at DESC)').run();
-  await env.DB.prepare('CREATE TABLE notifications ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), from_account_id TEXT NOT NULL REFERENCES accounts(id), type TEXT NOT NULL, status_id TEXT, read INTEGER DEFAULT 0, created_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE TABLE notifications ( id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), from_account_id TEXT NOT NULL REFERENCES accounts(id), type TEXT NOT NULL, status_id TEXT, emoji TEXT, read INTEGER DEFAULT 0, created_at TEXT NOT NULL )').run();
   await env.DB.prepare('CREATE INDEX idx_notifications_account ON notifications(account_id, created_at DESC)').run();
   await env.DB.prepare('CREATE INDEX idx_notifications_account_read ON notifications(account_id, read)').run();
   await env.DB.prepare('CREATE TABLE mentions ( id TEXT PRIMARY KEY, status_id TEXT NOT NULL REFERENCES statuses(id), account_id TEXT NOT NULL REFERENCES accounts(id), silent INTEGER DEFAULT 0, created_at TEXT NOT NULL, UNIQUE(status_id, account_id) )').run();

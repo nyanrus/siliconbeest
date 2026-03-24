@@ -22,7 +22,7 @@ export async function handleCreateNotification(
   msg: CreateNotificationMessage,
   env: Env,
 ): Promise<void> {
-  const { recipientAccountId, senderAccountId, notificationType, statusId } = msg;
+  const { recipientAccountId, senderAccountId, notificationType, statusId, emoji } = msg as CreateNotificationMessage & { emoji?: string };
 
   // Don't notify yourself
   if (recipientAccountId === senderAccountId) {
@@ -51,10 +51,10 @@ export async function handleCreateNotification(
 
   // Insert the notification
   await env.DB.prepare(
-    `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, created_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+    `INSERT INTO notifications (id, account_id, from_account_id, type, status_id, emoji, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
   )
-    .bind(notificationId, recipientAccountId, senderAccountId, notificationType, statusId ?? null)
+    .bind(notificationId, recipientAccountId, senderAccountId, notificationType, statusId ?? null, emoji ?? null)
     .run();
 
   console.log(

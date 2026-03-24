@@ -123,8 +123,9 @@ export async function processEmojiReact(
 			type: 'create_notification',
 			recipientAccountId: status.account_id,
 			senderAccountId: actorAccountId,
-			notificationType: 'favourite',
+			notificationType: 'emoji_reaction',
 			statusId: status.id,
+			emoji,
 		});
 	}
 }

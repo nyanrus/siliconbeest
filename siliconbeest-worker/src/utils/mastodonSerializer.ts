@@ -211,7 +211,7 @@ export function serializeNotification(
     status?: MastodonStatus | null;
   },
 ): MastodonNotification {
-  const notification: MastodonNotification = {
+  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null } = {
     id: row.id,
     type: row.type as NotificationType,
     created_at: row.created_at,
@@ -220,6 +220,11 @@ export function serializeNotification(
 
   if (opts.status !== undefined) {
     notification.status = opts.status;
+  }
+
+  // Include emoji for emoji_reaction notifications
+  if (row.emoji) {
+    notification.emoji = row.emoji;
   }
 
   return notification;

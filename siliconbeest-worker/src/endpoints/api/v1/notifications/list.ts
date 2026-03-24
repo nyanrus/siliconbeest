@@ -179,7 +179,7 @@ app.get('/', authRequired, async (c) => {
     };
     const notifRow: NotificationRow = {
       id: row.id, account_id: row.account_id, from_account_id: row.from_account_id,
-      type: row.type, status_id: row.status_id, read: row.read, created_at: row.created_at,
+      type: row.type, status_id: row.status_id, emoji: row.emoji ?? null, read: row.read, created_at: row.created_at,
     };
 
     const statusObj = row.status_id ? statusMap.get(row.status_id) ?? null : null;

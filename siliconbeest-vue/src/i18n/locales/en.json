@@ -171,6 +171,7 @@
     "follow": "{user} followed you",
     "followRequest": "{user} requested to follow you",
     "favourite": "{user} favourited your post",
+    "emoji_reaction": "{user} reacted to your post",
     "reblog": "{user} boosted your post",
     "poll": "A poll you voted in has ended",
     "update": "{user} edited a post",

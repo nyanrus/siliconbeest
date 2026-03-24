@@ -210,6 +210,7 @@ export interface NotificationRow {
   from_account_id: string;
   type: string;
   status_id: string | null;
+  emoji: string | null;
   read: number;
   created_at: string;
 }
