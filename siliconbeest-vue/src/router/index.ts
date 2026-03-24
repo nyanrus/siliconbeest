@@ -163,6 +163,11 @@ const router = createRouter({
           name: 'settings-filters',
           component: () => import('@/views/SettingsFiltersView.vue'),
         },
+        {
+          path: 'migration',
+          name: 'settings-migration',
+          component: () => import('@/views/SettingsMigrationView.vue'),
+        },
       ],
     },
 

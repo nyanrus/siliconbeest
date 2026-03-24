@@ -254,10 +254,11 @@ describe('serializeStatus', () => {
     expect(status.edited_at).toBe('2024-06-01T00:00:00Z');
   });
 
-  it('sets text to null', () => {
+  it('returns text field from row', () => {
     const account = serializeAccount(makeAccountRow());
     const status = serializeStatus(makeStatusRow(), { account });
-    expect(status.text).toBeNull();
+    // text comes from row.text — our mock has 'Hello world'
+    expect(status.text).toBe('Hello world');
   });
 });
 

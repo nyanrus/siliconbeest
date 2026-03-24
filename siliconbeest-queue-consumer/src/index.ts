@@ -18,6 +18,7 @@ import { handleFetchRemoteStatus } from './handlers/fetchRemoteStatus';
 import { handleSendWebPush } from './handlers/sendWebPush';
 import { handleFetchPreviewCard } from './handlers/fetchPreviewCard';
 import { handleForwardActivity } from './handlers/forwardActivity';
+import { handleImportItem } from './handlers/importItem';
 
 export default {
   async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {
@@ -53,6 +54,9 @@ export default {
             break;
           case 'forward_activity':
             await handleForwardActivity(msg.body, env);
+            break;
+          case 'import_item':
+            await handleImportItem(msg.body, env);
             break;
           default:
             console.warn('Unknown message type:', (msg.body as any).type);

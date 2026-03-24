@@ -136,6 +136,16 @@ export interface ForwardActivityMessage {
   targetInboxUrl: string;
 }
 
+export interface ImportItemMessage {
+  type: 'import_item';
+  /** Account address to import (e.g. "user@example.com") */
+  acct: string;
+  /** The action to perform */
+  action: 'following' | 'blocks' | 'mutes';
+  /** Account ID of the user performing the import */
+  accountId: string;
+}
+
 // ============================================================
 // DISCRIMINATED UNION
 // ============================================================
@@ -154,4 +164,5 @@ export type QueueMessage =
   | CleanupExpiredTokensMessage
   | UpdateTrendsMessage
   | FetchPreviewCardMessage
-  | ForwardActivityMessage;
+  | ForwardActivityMessage
+  | ImportItemMessage;

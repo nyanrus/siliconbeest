@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types/mastodon'
 import { lookupAccount, getFollowers, getFollowing } from '@/api/mastodon/accounts'
+import { parseLinkHeader } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import AppShell from '@/components/layout/AppShell.vue'
 import AccountCard from '@/components/account/AccountCard.vue'
+import InfiniteScroll from '@/components/common/InfiniteScroll.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const { t } = useI18n()
@@ -20,43 +22,60 @@ const accountName = ref('')
 const maxId = ref<string | null>(null)
 const hasMore = ref(true)
 const loadingMore = ref(false)
+const resolvedAccountId = ref<string | null>(null)
 
 const isFollowers = computed(() => route.name === 'profile-followers')
 const title = computed(() => isFollowers.value ? t('profile.followers') : t('profile.following'))
 
 async function load() {
   loading.value = true
+  accounts.value = []
+  maxId.value = null
+  hasMore.value = true
+  resolvedAccountId.value = null
+
   const acct = (route.params.acct as string).replace(/^@/, '')
   accountName.value = acct
 
   try {
     const { data: acctData } = await lookupAccount(acct, auth.token ?? undefined)
+    resolvedAccountId.value = acctData.id
+
     const fetcher = isFollowers.value ? getFollowers : getFollowing
-    const { data } = await fetcher(acctData.id, { token: auth.token ?? undefined })
+    const { data, headers } = await fetcher(acctData.id, { token: auth.token ?? undefined })
     accounts.value = data
-    if (data.length > 0 && data.length >= 40) {
+
+    // Use Link header to determine if there are more pages
+    const links = parseLinkHeader(headers.get('Link'))
+    hasMore.value = !!links.next
+
+    if (data.length > 0) {
       maxId.value = data[data.length - 1]!.id
-    } else {
-      hasMore.value = false
     }
   } catch {
     accounts.value = []
+    hasMore.value = false
   } finally {
     loading.value = false
   }
 }
 
 async function loadMore() {
-  if (loadingMore.value || !hasMore.value || !maxId.value) return
+  if (loadingMore.value || !hasMore.value || !maxId.value || !resolvedAccountId.value) return
   loadingMore.value = true
-  const acct = (route.params.acct as string).replace(/^@/, '')
 
   try {
-    const { data: acctData } = await lookupAccount(acct, auth.token ?? undefined)
     const fetcher = isFollowers.value ? getFollowers : getFollowing
-    const { data } = await fetcher(acctData.id, { token: auth.token ?? undefined, max_id: maxId.value! })
+    const { data, headers } = await fetcher(resolvedAccountId.value, {
+      token: auth.token ?? undefined,
+      max_id: maxId.value,
+    })
     accounts.value.push(...data)
-    if (data.length > 0 && data.length >= 40) {
+
+    const links = parseLinkHeader(headers.get('Link'))
+    hasMore.value = !!links.next
+
+    if (data.length > 0) {
       maxId.value = data[data.length - 1]!.id
     } else {
       hasMore.value = false
@@ -91,19 +110,9 @@ watch(() => [route.params.acct, route.name], load)
         {{ isFollowers ? t('profile.no_followers') : t('profile.no_following') }}
       </div>
 
-      <div v-else>
+      <InfiniteScroll v-else :loading="loadingMore" :done="!hasMore" @load-more="loadMore">
         <AccountCard v-for="account in accounts" :key="account.id" :account="account" />
-
-        <div v-if="hasMore" class="p-4 text-center">
-          <button
-            @click="loadMore"
-            :disabled="loadingMore"
-            class="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"
-          >
-            {{ loadingMore ? '...' : t('common.load_more') }}
-          </button>
-        </div>
-      </div>
+      </InfiniteScroll>
     </div>
   </AppShell>
 </template>

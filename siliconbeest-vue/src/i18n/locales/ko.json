@@ -14,7 +14,8 @@
     "retry": "다시 시도",
     "copied": "클립보드에 복사됨",
     "upload": "업로드",
-    "uploading": "업로드 중..."
+    "uploading": "업로드 중...",
+    "load_more": "더 보기"
   },
   "auth": {
     "login": "로그인",
@@ -224,6 +225,7 @@
     "appearance": "외관",
     "notifications": "알림",
     "filters": "필터",
+    "migration": "계정 이전",
     "language": "언어",
     "theme": "테마",
     "themeLight": "라이트",
@@ -568,6 +570,30 @@
     "no_members": "이 리스트에 멤버가 없습니다.",
     "empty_timeline": "이 리스트에 게시물이 없습니다",
     "empty_timeline_hint": "계정을 추가하면 여기에 게시물이 표시됩니다."
+  },
+  "migration": {
+    "title": "계정 이전",
+    "aliases": "계정 별칭",
+    "aliases_hint": "이전하기 전에 대상 계정에 별칭을 설정해야 합니다.",
+    "add_alias": "별칭 추가",
+    "remove_alias": "삭제",
+    "move_account": "계정 이전",
+    "move_warning": "이 작업은 되돌릴 수 없습니다. 계정이 대상 계정으로 영구적으로 리다이렉트됩니다.",
+    "target_acct": "대상 계정",
+    "confirm_move": "이 작업을 되돌릴 수 없음을 이해합니다",
+    "export": "데이터 내보내기",
+    "export_following": "팔로잉",
+    "export_followers": "팔로워",
+    "export_blocks": "차단",
+    "export_mutes": "뮤트",
+    "export_bookmarks": "북마크",
+    "export_lists": "리스트",
+    "import": "데이터 가져오기",
+    "import_type": "가져오기 유형",
+    "import_file": "CSV 파일",
+    "import_start": "가져오기 시작",
+    "import_processing": "가져오는 중...",
+    "import_success": "가져오기가 완료되었습니다."
   },
   "report": {
     "title": "신고",

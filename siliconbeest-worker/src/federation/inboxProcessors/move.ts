@@ -4,12 +4,17 @@
  * Handles incoming Move activities. Records that the old account has
  * moved to a new account by setting moved_to_account_id. Optionally
  * re-follows the new account for local followers (queued for later).
+ *
+ * Security: Verifies that the new account's actor document contains
+ * the old account URI in its alsoKnownAs array (bidirectional check).
  */
 
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
+import { fetchRemoteActor } from '../webfinger';
 import { buildFollowActivity } from '../activityBuilder';
+import { generateUlid } from '../../utils/ulid';
 
 export async function processMove(
 	activity: APActivity,
@@ -30,6 +35,25 @@ export async function processMove(
 	// Verify the actor matches the old account
 	if (activity.actor !== oldAccountUri) {
 		console.warn('[move] Actor does not match old account URI');
+		return;
+	}
+
+	// ── Bidirectional verification ──
+	// Fetch the new account's actor document and verify alsoKnownAs
+	const newActorDoc = await fetchRemoteActor(newAccountUri, env.CACHE, env.DB, env.INSTANCE_DOMAIN);
+	if (!newActorDoc) {
+		console.warn(`[move] Could not fetch new account actor document: ${newAccountUri}`);
+		return;
+	}
+
+	const alsoKnownAs: string[] = Array.isArray(newActorDoc.alsoKnownAs)
+		? newActorDoc.alsoKnownAs
+		: [];
+
+	if (!alsoKnownAs.includes(oldAccountUri)) {
+		console.warn(
+			`[move] Rejecting Move: new account ${newAccountUri} does not list ${oldAccountUri} in alsoKnownAs`,
+		);
 		return;
 	}
 
@@ -61,8 +85,7 @@ export async function processMove(
 		.bind(newAccount.id, now, oldAccount.id)
 		.run();
 
-	// Re-follow: for each local follower of the old account, enqueue a Follow
-	// activity to the new account so they automatically migrate.
+	// ── Create notifications for local followers ──
 	try {
 		const { results: localFollowers } = await env.DB.prepare(
 			`SELECT a.id, a.uri, a.username
@@ -73,6 +96,21 @@ export async function processMove(
 			.bind(oldAccount.id)
 			.all<{ id: string; uri: string; username: string }>();
 
+		if (localFollowers) {
+			// Create move notifications for each local follower
+			const notificationBatch = localFollowers.map((follower) =>
+				env.DB.prepare(
+					`INSERT OR IGNORE INTO notifications (id, account_id, from_account_id, type, created_at)
+					 VALUES (?1, ?2, ?3, 'move', ?4)`,
+				).bind(generateUlid(), follower.id, oldAccount.id, now),
+			);
+
+			if (notificationBatch.length > 0) {
+				await env.DB.batch(notificationBatch);
+			}
+		}
+
+		// Re-follow: for each local follower, enqueue a Follow activity to the new account
 		const newActorAccount = await env.DB.prepare(
 			`SELECT uri, inbox_url, shared_inbox_url, domain FROM accounts WHERE id = ?1 LIMIT 1`,
 		)

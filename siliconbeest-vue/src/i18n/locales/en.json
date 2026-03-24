@@ -14,7 +14,8 @@
     "retry": "Retry",
     "copied": "Copied to clipboard",
     "upload": "Upload",
-    "uploading": "Uploading..."
+    "uploading": "Uploading...",
+    "load_more": "Load more"
   },
   "auth": {
     "login": "Log in",
@@ -224,6 +225,7 @@
     "appearance": "Appearance",
     "notifications": "Notifications",
     "filters": "Filters",
+    "migration": "Migration",
     "language": "Language",
     "theme": "Theme",
     "themeLight": "Light",
@@ -568,6 +570,30 @@
     "no_members": "No members in this list yet.",
     "empty_timeline": "No posts in this list",
     "empty_timeline_hint": "Add accounts to this list to see their posts here."
+  },
+  "migration": {
+    "title": "Account Migration",
+    "aliases": "Account Aliases",
+    "aliases_hint": "You need to configure an alias on the target account before you can migrate.",
+    "add_alias": "Add Alias",
+    "remove_alias": "Remove",
+    "move_account": "Move Account",
+    "move_warning": "This is irreversible. Your account will be permanently redirected to the target account.",
+    "target_acct": "Target account",
+    "confirm_move": "I understand this cannot be undone",
+    "export": "Data Export",
+    "export_following": "Following",
+    "export_followers": "Followers",
+    "export_blocks": "Blocks",
+    "export_mutes": "Mutes",
+    "export_bookmarks": "Bookmarks",
+    "export_lists": "Lists",
+    "import": "Data Import",
+    "import_type": "Import type",
+    "import_file": "CSV file",
+    "import_start": "Start Import",
+    "import_processing": "Importing...",
+    "import_success": "Import completed successfully."
   },
   "report": {
     "title": "Report",

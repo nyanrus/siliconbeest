@@ -28,7 +28,7 @@ export function serializeActor(
 	account: AccountRow,
 	actorKey: ActorKeyRow,
 	domain: string,
-	opts?: { alsoKnownAs?: string[]; customEmojis?: CustomEmojiRow[] },
+	opts?: { alsoKnownAs?: string[]; movedTo?: string; customEmojis?: CustomEmojiRow[] },
 ): APActor {
 	const actorUri = `https://${domain}/users/${account.username}`;
 	const actorUrl = `https://${domain}/@${account.username}`;
@@ -136,9 +136,8 @@ export function serializeActor(
 	}
 
 	// Moved account
-	if (account.moved_to_account_id) {
-		// movedTo is set externally when the target URI is resolved;
-		// we omit it here since we only have the account ID.
+	if (opts?.movedTo) {
+		actor.movedTo = opts.movedTo;
 	}
 
 	return actor;

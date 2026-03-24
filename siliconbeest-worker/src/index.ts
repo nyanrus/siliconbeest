@@ -49,6 +49,8 @@ import suggestions from './endpoints/api/v1/suggestions';
 import announcements from './endpoints/api/v1/announcements';
 import rules from './endpoints/api/v1/rules';
 import trends from './endpoints/api/v1/trends/index';
+import csvExport from './endpoints/api/v1/export';
+import csvImport from './endpoints/api/v1/import';
 
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
@@ -163,6 +165,8 @@ app.route('/api/v1/auth/passwords', passwords);
 app.route('/api/v1/auth/login', authLogin);
 app.route('/api/v1/accounts', changePassword);
 app.route('/api/v1/admin', admin);
+app.route('/api/v1/export', csvExport);
+app.route('/api/v1/import', csvImport);
 
 // ---------------------------------------------------------------------------
 // Mastodon API v2

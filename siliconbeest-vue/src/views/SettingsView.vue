@@ -22,6 +22,7 @@ const settingSections = computed(() => {
     { key: 'appearance', name: 'settings-appearance' },
     { key: 'notifications', name: 'settings-notifications' },
     { key: 'filters', name: 'settings-filters' },
+    { key: 'migration', name: 'settings-migration' },
   ]
   if (auth.isAdmin) {
     sections.push({ key: 'admin', name: 'admin-settings' })

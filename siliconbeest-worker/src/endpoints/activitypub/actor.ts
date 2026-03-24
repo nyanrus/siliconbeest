@@ -54,6 +54,28 @@ app.get('/:username', async (c) => {
     return c.json({ error: 'Actor key not found' }, 500);
   }
 
+  // Parse alsoKnownAs from DB JSON column
+  let alsoKnownAs: string[] = [];
+  if (account.also_known_as) {
+    try {
+      const parsed = JSON.parse(account.also_known_as);
+      if (Array.isArray(parsed)) alsoKnownAs = parsed;
+    } catch {
+      // Invalid JSON; skip
+    }
+  }
+
+  // Resolve movedTo URI if this account has moved
+  let movedTo: string | undefined;
+  if (account.moved_to_account_id) {
+    const targetAccount = await c.env.DB.prepare(
+      `SELECT uri FROM accounts WHERE id = ?1 LIMIT 1`,
+    ).bind(account.moved_to_account_id).first<{ uri: string }>();
+    if (targetAccount) {
+      movedTo = targetAccount.uri;
+    }
+  }
+
   // Look up custom emojis used in the display name or bio
   const textToScan = `${account.display_name || ''} ${account.note || ''}`;
   const shortcodes = extractEmojiShortcodes(textToScan);
@@ -67,7 +89,7 @@ app.get('/:username', async (c) => {
     customEmojis = (results ?? []) as unknown as CustomEmojiRow[];
   }
 
-  const actor = serializeActor(account, actorKey, domain, { customEmojis });
+  const actor = serializeActor(account, actorKey, domain, { alsoKnownAs, movedTo, customEmojis });
 
   return c.json(actor, 200, {
     'Content-Type': 'application/activity+json; charset=utf-8',

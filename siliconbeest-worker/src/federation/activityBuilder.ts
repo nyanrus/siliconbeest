@@ -225,6 +225,23 @@ export function buildEmojiReactActivity(
 }
 
 /**
+ * Build a Move activity indicating an account migration.
+ *
+ * @param actorUri - The URI of the account that is moving (old account)
+ * @param targetUri - The URI of the account being moved to (new account)
+ */
+export function buildMoveActivity(actorUri: string, targetUri: string): APActivity {
+	return {
+		'@context': AP_CONTEXT,
+		id: `${actorUri}#moves/${generateUlid()}`,
+		type: 'Move',
+		actor: actorUri,
+		object: actorUri,
+		target: targetUri,
+	};
+}
+
+/**
  * Build a Block activity targeting another actor.
  */
 export function buildBlockActivity(actor: string, target: string): APActivity {

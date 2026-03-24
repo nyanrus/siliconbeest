@@ -17,6 +17,8 @@ import blockApp from './block';
 import unblockApp from './unblock';
 import muteApp from './mute';
 import unmuteApp from './unmute';
+import aliasesApp from './aliases';
+import migrationApp from './migration';
 import { authRequired } from '../../../../middleware/auth';
 
 const accounts = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -53,7 +55,13 @@ accounts.route('/', searchApp);
 // GET /api/v1/accounts/lookup
 accounts.route('/', lookupApp);
 
-// GET /api/v1/accounts/:id
+// GET/POST/DELETE /api/v1/accounts/aliases (MUST be before /:id catch-all)
+accounts.route('/', aliasesApp);
+
+// POST /api/v1/accounts/migration (MUST be before /:id catch-all)
+accounts.route('/', migrationApp);
+
+// GET /api/v1/accounts/:id (catch-all — must be AFTER named routes)
 accounts.route('/', fetchApp);
 
 // GET /api/v1/accounts/:id/statuses
