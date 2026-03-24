@@ -24,9 +24,30 @@ app.get('/:id', async (c) => {
   const note = (row.note as string) || '';
   const acctDomain = (row.domain as string) || null;
 
+  // Background refresh for stale remote accounts (24h)
+  if (acctDomain && row.uri) {
+    const fetchedAt = row.fetched_at as string | null;
+    const staleMs = 24 * 60 * 60 * 1000; // 24 hours
+    const isStale = !fetchedAt || (Date.now() - new Date(fetchedAt).getTime() > staleMs);
+    if (isStale) {
+      try {
+        await c.env.QUEUE_INTERNAL.send({
+          type: 'fetch_remote_account',
+          accountUri: row.uri as string,
+          forceRefresh: true,
+        });
+      } catch { /* non-blocking */ }
+    }
+  }
+
   // Fetch account emojis
   const emojiMap = await fetchAccountEmojis(c.env.DB, [displayName, note], acctDomain);
   const acctEmojis = getAccountEmojis(emojiMap, displayName, note);
+
+  const avatarUrl = (row.avatar_url as string) || '';
+  const headerUrl = (row.header_url as string) || '';
+  const defaultAvatar = `https://${domain}/default-avatar.svg`;
+  const defaultHeader = `https://${domain}/default-header.svg`;
 
   return c.json({
     id: row.id as string,
@@ -41,10 +62,10 @@ app.get('/:id', async (c) => {
     note,
     url: (row.url as string) || `https://${domain}/@${row.username}`,
     uri: row.uri as string,
-    avatar: (row.avatar_url as string) || null,
-    avatar_static: (row.avatar_static_url as string) || null,
-    header: (row.header_url as string) || null,
-    header_static: (row.header_static_url as string) || null,
+    avatar: avatarUrl || defaultAvatar,
+    avatar_static: (row.avatar_static_url as string) || avatarUrl || defaultAvatar,
+    header: headerUrl || defaultHeader,
+    header_static: (row.header_static_url as string) || headerUrl || defaultHeader,
     followers_count: (row.followers_count as number) || 0,
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,

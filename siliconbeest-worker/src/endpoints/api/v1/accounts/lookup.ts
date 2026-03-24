@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
+import { resolveWebFinger, fetchRemoteActor } from '../../../../federation/webfinger';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -36,6 +37,45 @@ app.get('/lookup', async (c) => {
     row = await c.env.DB.prepare(
       'SELECT * FROM accounts WHERE username = ?1 AND domain = ?2',
     ).bind(username, acctDomain).first();
+  }
+
+  // If remote account not in DB, try WebFinger resolve
+  if (!row && acctDomain && acctDomain !== instanceDomain) {
+    try {
+      const wfResult = await resolveWebFinger(`${username}@${acctDomain}`, c.env.CACHE);
+      if (wfResult?.actorUri) {
+        const actorData = await fetchRemoteActor(wfResult.actorUri, c.env.CACHE, c.env.DB, instanceDomain);
+        if (actorData) {
+          // Upsert into accounts
+          const id = crypto.randomUUID();
+          const now = new Date().toISOString();
+          const preferredUsername = actorData.preferredUsername || username;
+          await c.env.DB.prepare(
+            `INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url,
+             avatar_url, header_url, locked, bot, discoverable, inbox_url, shared_inbox_url,
+             followers_count, following_count, statuses_count, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)`,
+          ).bind(
+            id, preferredUsername, acctDomain,
+            actorData.name || '', actorData.summary || '',
+            actorData.id || wfResult.actorUri,
+            actorData.url || `https://${acctDomain}/@${preferredUsername}`,
+            actorData.icon?.url || '', actorData.image?.url || '',
+            actorData.manuallyApprovesFollowers ? 1 : 0,
+            actorData.type === 'Service' ? 1 : 0,
+            actorData.discoverable ? 1 : 0,
+            actorData.inbox || '', actorData.endpoints?.sharedInbox || '',
+            0, 0, 0, now,
+          ).run();
+
+          row = await c.env.DB.prepare(
+            'SELECT * FROM accounts WHERE username = ?1 AND domain = ?2',
+          ).bind(preferredUsername, acctDomain).first();
+        }
+      }
+    } catch (e) {
+      console.error(`[lookup] WebFinger resolve failed for ${username}@${acctDomain}:`, e);
+    }
   }
 
   if (!row) throw new AppError(404, 'Record not found');

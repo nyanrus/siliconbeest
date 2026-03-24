@@ -68,3 +68,6 @@ backups/
 *.pid
 *.seed
 *.pid.lock
+
+
+.claude/
