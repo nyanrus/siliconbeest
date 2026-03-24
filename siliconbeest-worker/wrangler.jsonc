@@ -114,6 +114,10 @@
 	    "zone_name": "sjang.dev"
 	  },
 	  {
+	    "pattern": "siliconbeest.sjang.dev/authorize_interaction*",
+	    "zone_name": "sjang.dev"
+	  },
+	  {
 	    "pattern": "siliconbeest.sjang.dev/healthz",
 	    "zone_name": "sjang.dev"
 	  },

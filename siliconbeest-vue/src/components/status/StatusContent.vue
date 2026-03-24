@@ -73,6 +73,41 @@ function enrichMentions(html: string): string {
 
       return `<a ${pre}class="${cls}"${mid}href="${localHref}"${post}>@<span>${display}</span></a>`
     }
+  ).replace(
+    // Handle mention links WITHOUT <span> wrapper (e.g. from Misskey/Pleroma/hackers.pub)
+    // Pattern: <a href="https://domain/@user" class="mention">@user@domain</a>
+    /<a\s+([^>]*?)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*?)class="([^"]*mention[^"]*)"([^>]*)>@([^<]+)<\/a>/gi,
+    (_match, pre, _href, domain, pathUser, mid, cls, post, displayText) => {
+      const username = pathUser
+      const isLocal = domain === currentDomain
+
+      const localHref = isLocal
+        ? `${currentOrigin}/@${username}`
+        : `${currentOrigin}/@${username}@${domain}`
+
+      const display = isLocal || displayText.includes('@')
+        ? displayText
+        : `${displayText}@${domain}`
+
+      return `<a ${pre}href="${localHref}"${mid}class="${cls}"${post}>@<span>${display}</span></a>`
+    }
+  ).replace(
+    // Same but class before href
+    /<a\s+([^>]*?)class="([^"]*mention[^"]*)"([^>]*?)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*)>@([^<]+)<\/a>/gi,
+    (_match, pre, cls, mid, _href, domain, pathUser, post, displayText) => {
+      const username = pathUser
+      const isLocal = domain === currentDomain
+
+      const localHref = isLocal
+        ? `${currentOrigin}/@${username}`
+        : `${currentOrigin}/@${username}@${domain}`
+
+      const display = isLocal || displayText.includes('@')
+        ? displayText
+        : `${displayText}@${domain}`
+
+      return `<a ${pre}class="${cls}"${mid}href="${localHref}"${post}>@<span>${display}</span></a>`
+    }
   )
 }
 
