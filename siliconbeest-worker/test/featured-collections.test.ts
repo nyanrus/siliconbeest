@@ -10,8 +10,7 @@ describe('Featured Collections (ActivityPub)', () => {
 
   beforeAll(async () => {
     await applyMigration();
-    // Add pinned column to statuses table for featured collection support
-    await env.DB.prepare('ALTER TABLE statuses ADD COLUMN pinned INTEGER DEFAULT 0').run();
+    // pinned column is now included in helpers.ts CREATE TABLE
     user = await createTestUser('featureduser');
   });
 
