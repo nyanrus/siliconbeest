@@ -6,6 +6,13 @@ import Avatar from '../common/Avatar.vue'
 
 const { t } = useI18n()
 
+function emojifyText(text: string, emojis?: Array<{ shortcode: string; url: string }>): string {
+  if (!emojis || emojis.length === 0 || !text) return text
+  let r = text
+  for (const e of emojis) r = r.replace(new RegExp(`:${e.shortcode}:`, 'g'), `<img src="${e.url}" alt=":${e.shortcode}:" class="inline-block h-4 w-4 align-text-bottom" draggable="false" />`)
+  return r
+}
+
 const props = defineProps<{
   notification: Notification
 }>()
@@ -73,7 +80,7 @@ const config = computed(() => {
         </router-link>
         <p class="text-sm">
           <router-link :to="`/@${notification.account.acct}`" class="font-bold hover:underline">
-            {{ notification.account.display_name }}
+            <span v-html="emojifyText(notification.account.display_name, notification.account.emojis)" />
           </router-link>
           <span class="text-gray-500 dark:text-gray-400 ml-1">
             {{ t(`notification.${notification.type}`) }}

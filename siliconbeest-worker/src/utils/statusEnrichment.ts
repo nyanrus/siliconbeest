@@ -266,12 +266,16 @@ export async function enrichStatuses(
       .bind(...shortcodeList)
       .all();
 
-    const emojiInfoMap = new Map<string, EmojiInfo>();
+    // Build map: shortcode -> { domain -> EmojiInfo }
+    // This allows domain-specific emoji matching
+    const emojiByShortcodeDomain = new Map<string, Map<string, EmojiInfo>>();
     for (const er of emojiRows ?? []) {
       const sc = er.shortcode as string;
+      const eDomain = (er.domain as string) || '__local__';
       const imageKey = er.image_key as string;
       const url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
-      emojiInfoMap.set(sc, {
+      if (!emojiByShortcodeDomain.has(sc)) emojiByShortcodeDomain.set(sc, new Map());
+      emojiByShortcodeDomain.get(sc)!.set(eDomain, {
         shortcode: sc,
         url,
         static_url: url,
@@ -279,14 +283,31 @@ export async function enrichStatuses(
       });
     }
 
+    // Get account domains for each status to match emojis correctly
+    const statusDomainMap = new Map<string, string>();
+    if (statusIds.length > 0) {
+      const domainPlaceholders = statusIds.map(() => '?').join(',');
+      const { results: domainRows } = await db
+        .prepare(`SELECT s.id, a.domain FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id IN (${domainPlaceholders})`)
+        .bind(...statusIds)
+        .all();
+      for (const dr of domainRows ?? []) {
+        statusDomainMap.set(dr.id as string, (dr.domain as string) || '__local__');
+      }
+    }
+
     for (const [statusId, codes] of statusShortcodes) {
       const entry = result.get(statusId);
       if (!entry) continue;
+      const accountDomain = statusDomainMap.get(statusId) || '__local__';
       const seen = new Set<string>();
       for (const code of codes) {
         if (seen.has(code)) continue;
         seen.add(code);
-        const info = emojiInfoMap.get(code);
+        const domainMap = emojiByShortcodeDomain.get(code);
+        if (!domainMap) continue;
+        // Priority: 1) same domain as account, 2) local instance emoji, 3) skip
+        const info = domainMap.get(accountDomain) ?? domainMap.get('__local__');
         if (info) {
           entry.emojis.push(info);
         }
@@ -295,4 +316,74 @@ export async function enrichStatuses(
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Account Emoji Enrichment
+// ---------------------------------------------------------------------------
+
+export type AccountEmojiInfo = {
+  shortcode: string;
+  url: string;
+  static_url: string;
+  visible_in_picker: boolean;
+};
+
+/**
+ * Batch-fetch custom emojis for a set of account texts (display_name + note).
+ * Domain-aware: only matches emojis from the specified account domain (or local).
+ */
+export async function fetchAccountEmojis(
+  db: D1Database,
+  texts: string[],
+  accountDomain?: string | null,
+): Promise<Map<string, AccountEmojiInfo>> {
+  const result = new Map<string, AccountEmojiInfo>();
+  const allShortcodes = new Set<string>();
+
+  for (const text of texts) {
+    if (!text) continue;
+    const matches = text.matchAll(/:([a-zA-Z0-9_]{2,}?):/g);
+    for (const m of matches) allShortcodes.add(m[1]);
+  }
+
+  if (allShortcodes.size === 0) return result;
+
+  const codes = [...allShortcodes];
+  const placeholders = codes.map(() => '?').join(',');
+  const { results } = await db
+    .prepare(`SELECT shortcode, image_key, domain FROM custom_emojis WHERE shortcode IN (${placeholders})`)
+    .bind(...codes)
+    .all();
+
+  const targetDomain = accountDomain || null;
+  for (const r of results ?? []) {
+    const sc = r.shortcode as string;
+    const emojiDomain = (r.domain as string) || null;
+    // Only match: same domain as account, OR local emojis (domain IS NULL)
+    if (emojiDomain !== targetDomain && emojiDomain !== null) continue;
+    const imageKey = r.image_key as string;
+    const url = imageKey.startsWith('http') ? imageKey : `https://${r.domain}/emoji/${imageKey}`;
+    result.set(sc, { shortcode: sc, url, static_url: url, visible_in_picker: false });
+  }
+
+  return result;
+}
+
+/**
+ * Extract emojis from account's display_name and note, returning an array for serialization.
+ */
+export function getAccountEmojis(
+  emojiMap: Map<string, AccountEmojiInfo>,
+  displayName: string,
+  note: string,
+): AccountEmojiInfo[] {
+  const found = new Map<string, AccountEmojiInfo>();
+  const combined = `${displayName} ${note}`;
+  const matches = combined.matchAll(/:([a-zA-Z0-9_]{2,}?):/g);
+  for (const m of matches) {
+    const emoji = emojiMap.get(m[1]);
+    if (emoji) found.set(m[1], emoji);
+  }
+  return [...found.values()];
 }

@@ -28,22 +28,50 @@ function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; 
 }
 
 /**
- * Enrich mention links to always show @username@domain for remote users.
- * Remote servers often send `<a href="https://remote.server/@user">@<span>user</span></a>`
- * which only shows @user. We extract the domain from href and append it.
+ * Enrich mention links:
+ * 1. Rewrite href to point to our server's profile page (/@user@domain)
+ * 2. Show @username@domain for remote users
  */
 function enrichMentions(html: string): string {
-  // Match mention links: <a href="https://domain/@user" class="...mention...">@<span>username</span></a>
+  const currentDomain = window.location.hostname
+  const currentOrigin = window.location.origin
+
+  // Match mention links with class="mention" and href to any server
+  // Handles both: href before class, and class before href
   return html.replace(
-    /<a\s+([^>]*class="[^"]*mention[^"]*"[^>]*)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*)>@<span>([^<]+)<\/span><\/a>/gi,
-    (match, pre, href, domain, _pathUser, post, displayName) => {
-      // Check if the display already includes @domain
-      if (displayName.includes('@')) return match
-      // Check if this is our own domain
-      const currentDomain = window.location.hostname
-      if (domain === currentDomain) return match
-      // Append @domain to the display
-      return `<a ${pre}href="${href}"${post}>@<span>${displayName}@${domain}</span></a>`
+    /<a\s+([^>]*?)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*?)class="([^"]*mention[^"]*)"([^>]*)>@<span>([^<]+)<\/span><\/a>/gi,
+    (_match, pre, _href, domain, pathUser, mid, cls, post, displayName) => {
+      const username = pathUser
+      const isLocal = domain === currentDomain
+
+      // Build our local profile URL
+      const localHref = isLocal
+        ? `${currentOrigin}/@${username}`
+        : `${currentOrigin}/@${username}@${domain}`
+
+      // Display name: append @domain for remote users
+      const display = isLocal || displayName.includes('@')
+        ? displayName
+        : `${displayName}@${domain}`
+
+      return `<a ${pre}href="${localHref}"${mid}class="${cls}"${post}>@<span>${display}</span></a>`
+    }
+  ).replace(
+    // Also handle: class before href pattern
+    /<a\s+([^>]*?)class="([^"]*mention[^"]*)"([^>]*?)href="(https?:\/\/([^/]+)\/@([^"]+))"([^>]*)>@<span>([^<]+)<\/span><\/a>/gi,
+    (_match, pre, cls, mid, _href, domain, pathUser, post, displayName) => {
+      const username = pathUser
+      const isLocal = domain === currentDomain
+
+      const localHref = isLocal
+        ? `${currentOrigin}/@${username}`
+        : `${currentOrigin}/@${username}@${domain}`
+
+      const display = isLocal || displayName.includes('@')
+        ? displayName
+        : `${displayName}@${domain}`
+
+      return `<a ${pre}class="${cls}"${mid}href="${localHref}"${post}>@<span>${display}</span></a>`
     }
   )
 }

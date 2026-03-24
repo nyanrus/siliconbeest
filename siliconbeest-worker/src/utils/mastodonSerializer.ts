@@ -78,7 +78,7 @@ export function ensureISO8601(dateStr: string): string {
 
 export function serializeAccount(
   row: AccountRow,
-  opts?: { source?: Source; fields?: Field[] },
+  opts?: { source?: Source; fields?: Field[]; emojis?: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> },
 ): MastodonAccount {
   const isLocal = row.domain === null || row.domain === '';
   const acct = isLocal ? row.username : `${row.username}@${row.domain}`;
@@ -106,7 +106,7 @@ export function serializeAccount(
     followers_count: row.followers_count,
     following_count: row.following_count,
     fields: opts?.fields ?? parseJsonField((row as any).fields, []),
-    emojis: [],
+    emojis: opts?.emojis ?? [],
   };
 
   if (opts?.source) {

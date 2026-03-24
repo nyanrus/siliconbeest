@@ -8,6 +8,19 @@ import ReportDialog from '../common/ReportDialog.vue'
 
 const { t } = useI18n()
 
+/** Replace :shortcode: with <img> for custom emojis */
+function emojifyText(text: string, emojis?: Array<{ shortcode: string; url: string; static_url: string }>): string {
+  if (!emojis || emojis.length === 0 || !text) return text
+  let result = text
+  for (const e of emojis) {
+    result = result.replace(
+      new RegExp(`:${e.shortcode}:`, 'g'),
+      `<img src="${e.url}" alt=":${e.shortcode}:" title=":${e.shortcode}:" class="inline-block h-5 w-5 align-text-bottom" draggable="false" />`
+    )
+  }
+  return result
+}
+
 const props = defineProps<{
   account: {
     id: string
@@ -20,10 +33,14 @@ const props = defineProps<{
     following_count: number
     followers_count: number
     fields?: Array<{ name: string; value: string; verified_at?: string | null }>
+    emojis?: Array<{ shortcode: string; url: string; static_url: string }>
   }
   isOwn?: boolean
   relationship?: Relationship
 }>()
+
+const emojifiedName = computed(() => emojifyText(props.account.display_name || props.account.acct, props.account.emojis))
+const emojifiedNote = computed(() => emojifyText(props.account.note || '', props.account.emojis))
 
 const emit = defineEmits<{
   'toggle-follow': []
@@ -120,7 +137,7 @@ function handleToggle() {
       </div>
 
       <!-- Name -->
-      <h1 class="text-xl font-bold">{{ account.display_name }}</h1>
+      <h1 class="text-xl font-bold" v-html="emojifiedName" />
       <p class="text-gray-500 dark:text-gray-400 text-sm">@{{ account.acct }}</p>
       <span
         v-if="remoteDomain"
@@ -133,7 +150,7 @@ function handleToggle() {
       <div
         v-if="account.note"
         class="prose prose-sm dark:prose-invert max-w-none mt-3"
-        v-html="account.note"
+        v-html="emojifiedNote"
       />
 
       <!-- Fields -->
