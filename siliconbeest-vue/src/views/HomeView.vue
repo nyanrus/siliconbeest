@@ -26,14 +26,17 @@ const statuses = computed(() => {
 
 const hasNewPosts = computed(() => timeline.value.newStatusIds.length > 0)
 
-// Auto-insert new posts when user is at top of page
+// New posts behavior:
+// - At scroll top: auto-insert immediately (no banner)
+// - Scrolled down: show banner, click to load
+// - Scroll back to top: auto-insert pending new posts
 const isAtTop = ref(true)
 let scrollTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleScroll() {
   if (scrollTimer) return
   scrollTimer = setTimeout(() => {
-    isAtTop.value = window.scrollY < 100
+    isAtTop.value = window.scrollY < 50
     scrollTimer = null
   }, 100)
 }
@@ -44,8 +47,16 @@ onUnmounted(() => {
   if (scrollTimer) clearTimeout(scrollTimer)
 })
 
+// When new posts arrive while at top → auto-insert
 watch(() => timeline.value.newStatusIds.length, (len) => {
   if (len > 0 && isAtTop.value) {
+    timelinesStore.showNewStatuses('home')
+  }
+})
+
+// When user scrolls back to top and there are pending posts → auto-insert
+watch(isAtTop, (atTop) => {
+  if (atTop && timeline.value.newStatusIds.length > 0) {
     timelinesStore.showNewStatuses('home')
   }
 })
@@ -101,9 +112,8 @@ onMounted(loadTimeline)
         :statuses="statuses"
         :loading="timeline.loading || timeline.loadingMore"
         :done="!timeline.hasMore"
-        :has-new-posts="hasNewPosts"
+        :has-new-posts="hasNewPosts && !isAtTop"
         :new-posts-count="timeline.newStatusIds.length"
-        :auto-insert="isAtTop"
         @load-more="loadMore"
         @load-new="showNew"
       />

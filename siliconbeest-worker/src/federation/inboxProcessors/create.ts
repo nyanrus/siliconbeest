@@ -162,7 +162,7 @@ export async function processCreate(
 			conversationId,
 			inReplyToId ? 1 : 0,
 			quoteId,
-			note.published ?? now,
+			note.published ? new Date(note.published).toISOString() : now,
 			now,
 		)
 		.run();

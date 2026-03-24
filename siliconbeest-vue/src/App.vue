@@ -6,6 +6,7 @@ import { useInstanceStore } from '@/stores/instance';
 import { useUiStore } from '@/stores/ui';
 import { useComposeStore } from '@/stores/compose';
 import { useTimelinesStore } from '@/stores/timelines';
+import { useStatusesStore } from '@/stores/statuses';
 import { useNotificationsStore } from '@/stores/notifications';
 import Modal from '@/components/common/Modal.vue';
 import StatusComposer from '@/components/status/StatusComposer.vue';
@@ -15,6 +16,7 @@ const instance = useInstanceStore();
 const ui = useUiStore();
 const compose = useComposeStore();
 const timelinesStore = useTimelinesStore();
+const statusesStore = useStatusesStore();
 const notifStore = useNotificationsStore();
 const router = useRouter();
 
@@ -29,7 +31,13 @@ async function handleGlobalCompose(payload: { content: string; visibility?: stri
   if (payload.language) compose.language = payload.language;
   const status = await compose.publish();
   if (status) {
+    statusesStore.cacheStatus(status);
     timelinesStore.prependStatus('home', status.id);
+    // Also add to public/local timelines if visibility allows
+    if (status.visibility === 'public') {
+      timelinesStore.prependStatus('public', status.id);
+      timelinesStore.prependStatus('local', status.id);
+    }
     ui.closeComposeModal();
   }
 }
