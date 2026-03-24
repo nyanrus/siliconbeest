@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================================
 # SiliconBeest — Sync Cloudflare Resource IDs to wrangler.jsonc
 # ============================================================================
@@ -20,11 +20,40 @@
 #   - Cloudflare account with existing resources
 # ============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/config.sh" 2>/dev/null || true
-source "$SCRIPT_DIR/config.env" 2>/dev/null || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
+# Source config — set defaults if config.sh not found
+if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
+  source "$SCRIPT_DIR/config.sh"
+else
+  echo "[WARN] config.sh not found, using defaults"
+  PROJECT_PREFIX="${PROJECT_PREFIX:-siliconbeest}"
+  WORKER_NAME="${WORKER_NAME:-${PROJECT_PREFIX}-worker}"
+  CONSUMER_NAME="${CONSUMER_NAME:-${PROJECT_PREFIX}-queue-consumer}"
+  VUE_NAME="${VUE_NAME:-${PROJECT_PREFIX}-vue}"
+  D1_DATABASE_NAME="${D1_DATABASE_NAME:-${PROJECT_PREFIX}-db}"
+  R2_BUCKET_NAME="${R2_BUCKET_NAME:-${PROJECT_PREFIX}-media}"
+  KV_CACHE_TITLE="${KV_CACHE_TITLE:-${PROJECT_PREFIX}-CACHE}"
+  KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
+  QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
+  QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
+  QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
+  PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+  WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
+  CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
+  VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+  BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+  info()    { echo -e "${BLUE}[INFO]${NC}  $*"; }
+  success() { echo -e "${GREEN}[OK]${NC}    $*"; }
+  warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+  error()   { echo -e "${RED}[ERROR]${NC} $*"; }
+  header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+fi
+
+[[ -f "$SCRIPT_DIR/config.env" ]] && source "$SCRIPT_DIR/config.env"
 
 APPLY=false
 if [[ "${1:-}" == "--apply" ]]; then
@@ -49,14 +78,14 @@ header "Fetching Cloudflare Resources"
 
 # --- D1 Database ---
 info "Looking up D1 database: ${D1_DATABASE_NAME}"
-D1_ID=$(npx wrangler d1 list 2>/dev/null | grep -w "$D1_DATABASE_NAME" | awk '{print $1}' || true)
-if [[ -z "$D1_ID" ]]; then
-  # Try JSON format
-  D1_ID=$(npx wrangler d1 list --json 2>/dev/null | node -e "
-    const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-    const db = d.find(x => x.name === '${D1_DATABASE_NAME}');
-    if (db) console.log(db.uuid);
-  " 2>/dev/null || true)
+D1_ID=$(npx wrangler d1 list --json 2>/dev/null | node -e "
+  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+  const db = d.find(x => x.name === '${D1_DATABASE_NAME}');
+  if (db) console.log(db.uuid);
+" 2>/dev/null || true)
+# Fallback: parse table output
+if [[ -z "$D1_ID" || "$D1_ID" == *"│"* ]]; then
+  D1_ID=$(npx wrangler d1 list 2>/dev/null | grep "$D1_DATABASE_NAME" | sed 's/[│ ]//g' | grep -oE '[0-9a-f-]{36}' | head -1 || true)
 fi
 if [[ -n "$D1_ID" ]]; then
   success "D1: $D1_DATABASE_NAME → $D1_ID"
@@ -96,7 +125,13 @@ fi
 # --- Instance Domain (from current wrangler.jsonc if exists) ---
 CURRENT_DOMAIN=""
 if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  CURRENT_DOMAIN=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "vars?.INSTANCE_DOMAIN" 2>/dev/null || true)
+  # Strip JSONC comments and parse with node
+  CURRENT_DOMAIN=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+    try {
+      const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+      if (d.vars?.INSTANCE_DOMAIN) console.log(d.vars.INSTANCE_DOMAIN);
+    } catch(e) {}
+  " 2>/dev/null || true)
 fi
 if [[ -n "$CURRENT_DOMAIN" ]]; then
   info "Instance domain: $CURRENT_DOMAIN"
@@ -108,14 +143,24 @@ fi
 # --- Instance Title ---
 CURRENT_TITLE=""
 if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  CURRENT_TITLE=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "vars?.INSTANCE_TITLE" 2>/dev/null || true)
+  CURRENT_TITLE=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+    try {
+      const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+      if (d.vars?.INSTANCE_TITLE) console.log(d.vars.INSTANCE_TITLE);
+    } catch(e) {}
+  " 2>/dev/null || true)
 fi
 CURRENT_TITLE="${CURRENT_TITLE:-SiliconBeest}"
 
 # --- Registration Mode ---
 CURRENT_REG=""
 if [[ -f "$WORKER_DIR/wrangler.jsonc" ]]; then
-  CURRENT_REG=$(read_wrangler_json "$WORKER_DIR/wrangler.jsonc" "vars?.REGISTRATION_MODE" 2>/dev/null || true)
+  CURRENT_REG=$(sed 's|//.*$||' "$WORKER_DIR/wrangler.jsonc" | node -e "
+    try {
+      const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+      if (d.vars?.REGISTRATION_MODE) console.log(d.vars.REGISTRATION_MODE);
+    } catch(e) {}
+  " 2>/dev/null || true)
 fi
 CURRENT_REG="${CURRENT_REG:-open}"
 
