@@ -21,7 +21,8 @@ export type StreamEventType =
   | 'delete'
   | 'status.update'
   | 'filters_changed'
-  | 'emoji_update';
+  | 'emoji_update'
+  | 'notifications_read';
 
 export interface StreamEvent {
   event: StreamEventType;
@@ -36,6 +37,7 @@ export interface StreamCallbacks {
   onStatusUpdate?: (status: Status) => void;
   onFiltersChanged?: () => void;
   onEmojiUpdate?: (emojis: EmojiInfo[]) => void;
+  onNotificationsRead?: (count: number) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
 }
@@ -172,6 +174,15 @@ export class StreamingClient {
           try {
             const emojis = JSON.parse(data.payload) as EmojiInfo[];
             this.callbacks.onEmojiUpdate(emojis);
+          } catch { /* ignore */ }
+        }
+        break;
+      }
+      case 'notifications_read': {
+        if (this.callbacks.onNotificationsRead) {
+          try {
+            const { count } = JSON.parse(data.payload) as { count: number };
+            this.callbacks.onNotificationsRead(count);
           } catch { /* ignore */ }
         }
         break;

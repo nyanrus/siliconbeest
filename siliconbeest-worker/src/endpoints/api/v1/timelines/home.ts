@@ -17,11 +17,10 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  // Use status_id for cursor pagination but order by created_at for correct chronological order
-  // Since status IDs may use different formats (local ULID vs remote ULID), ordering by status_id alone
-  // can produce incorrect chronological results. We order by hte.created_at instead.
+  // Order by the status's own created_at (not the fanout time) for correct chronological order.
+  // This ensures replies appear at the correct position based on when they were actually posted.
   const { whereClause, limitValue, params } = buildPaginationQuery(pag, 'hte.status_id');
-  const orderClause = pag.minId ? 'hte.created_at ASC' : 'hte.created_at DESC';
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
   const conditions = [`hte.account_id = ?`];
   const binds: (string | number)[] = [account.id];

@@ -53,11 +53,33 @@ app.get('/:username/collections/featured', async (c) => {
 		convMap.set(cid, row?.ap_uri ?? null);
 	}
 
+	// Batch fetch media
+	const sIds = rows.map((s) => s.id);
+	const featMediaMap = new Map<string, any[]>();
+	if (sIds.length > 0) {
+		const ph = sIds.map(() => '?').join(',');
+		const { results: fm } = await c.env.DB.prepare(
+			`SELECT * FROM media_attachments WHERE status_id IN (${ph})`,
+		).bind(...sIds).all();
+		for (const m of (fm ?? []) as Record<string, unknown>[]) {
+			const sid = m.status_id as string;
+			if (!featMediaMap.has(sid)) featMediaMap.set(sid, []);
+			featMediaMap.get(sid)!.push({
+				url: `https://${domain}/media/${m.file_key}`,
+				mediaType: (m.file_content_type as string) || 'image/jpeg',
+				description: (m.description as string) || '',
+				width: m.width as number | null, height: m.height as number | null,
+				blurhash: m.blurhash as string | null, type: (m.type as string) || 'image',
+			});
+		}
+	}
+
 	const orderedItems = rows.map((status) => {
 		const conversationApUri = status.conversation_id
 			? convMap.get(status.conversation_id) ?? null
 			: null;
-		return serializeNote(status, account, domain, { conversationApUri });
+		const attachments = featMediaMap.get(status.id) ?? [];
+		return serializeNote(status, account, domain, { conversationApUri, attachments });
 	});
 
 	return c.json(

@@ -20,12 +20,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const error = ref<string | null>(null);
   const lastReadId = ref<string | null>(null);
   const streamingClient = ref<StreamingClient | null>(null);
+  const serverUnreadCount = ref(0);
 
-  const unreadCount = computed(() => {
-    if (!lastReadId.value) return items.value.length;
-    const idx = items.value.findIndex((n) => n.id === lastReadId.value);
-    return idx === -1 ? items.value.length : idx;
-  });
+  const unreadCount = computed(() => serverUnreadCount.value);
 
   function cacheFromNotifications(notifications: Notification[]) {
     const statusStore = useStatusesStore();
@@ -54,6 +51,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
       if (data.length > 0) {
         maxId.value = data[data.length - 1]!.id;
       }
+
+      // Fetch unread count from server
+      await fetchUnreadCount(token);
 
       // Auto-connect streaming for notifications
       if (!streamingClient.value) {
@@ -103,29 +103,38 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items.value = items.value.filter((n) => n.id !== id);
   }
 
+  async function fetchUnreadCount(token: string) {
+    try {
+      const { data } = await apiFetch<{ count: number }>('/v1/notifications/unread_count', { token });
+      serverUnreadCount.value = data.count;
+    } catch { /* ignore */ }
+  }
+
   async function markAllRead(token?: string) {
-    if (items.value.length > 0) {
-      lastReadId.value = items.value[0]!.id;
-      // Save marker to server
-      if (token && lastReadId.value) {
-        try {
-          await apiFetch('/v1/markers', {
-            method: 'POST',
-            token,
-            body: { notifications: { last_read_id: lastReadId.value } },
-          });
-        } catch { /* ignore */ }
-      }
-    }
+    if (!token) return;
+    try {
+      const { data } = await apiFetch<{ count: number }>('/v1/notifications/read', {
+        method: 'POST',
+        token,
+        body: {},
+      });
+      serverUnreadCount.value = data.count;
+    } catch { /* ignore */ }
+  }
+
+  async function markRead(id: string, token: string) {
+    try {
+      const { data } = await apiFetch<{ count: number }>('/v1/notifications/read', {
+        method: 'POST',
+        token,
+        body: { id },
+      });
+      serverUnreadCount.value = data.count;
+    } catch { /* ignore */ }
   }
 
   async function loadMarker(token: string) {
-    try {
-      const { data } = await apiFetch<Record<string, any>>('/v1/markers?timeline[]=notifications', { token });
-      if (data?.notifications?.last_read_id) {
-        lastReadId.value = data.notifications.last_read_id;
-      }
-    } catch { /* ignore */ }
+    await fetchUnreadCount(token);
   }
 
   function prepend(notification: Notification) {
@@ -139,6 +148,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
       onNotification(notification: Notification) {
         cacheFromNotifications([notification]);
         prepend(notification);
+        serverUnreadCount.value++;
+      },
+      onNotificationsRead(count: number) {
+        serverUnreadCount.value = count;
+        // Also update local read state for items that should now be read
+        if (count === 0) {
+          items.value.forEach((n: any) => { n.read = 1; });
+        }
       },
     });
 
@@ -165,7 +182,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
     fetchMore,
     clearAll,
     dismiss,
+    serverUnreadCount,
     markAllRead,
+    markRead,
+    fetchUnreadCount,
     loadMarker,
     prepend,
     connectStream,

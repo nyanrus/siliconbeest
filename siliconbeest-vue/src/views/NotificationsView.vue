@@ -24,7 +24,6 @@ const followRequestCount = ref(0)
 async function loadNotifications() {
   if (!auth.token) return
   await notificationsStore.fetch(auth.token)
-  notificationsStore.markAllRead(auth.token!)
 
   // Check follow requests
   try {
@@ -43,6 +42,21 @@ async function clearAll() {
   await notificationsStore.clearAll(auth.token)
 }
 
+async function markAllRead() {
+  if (!auth.token) return
+  await notificationsStore.markAllRead(auth.token)
+  // Update local read state for visual feedback
+  notifications.value.forEach((n: any) => { n.read = 1 })
+}
+
+async function handleMarkRead(id: string) {
+  if (!auth.token) return
+  await notificationsStore.markRead(id, auth.token)
+  // Update local read state
+  const notif = notifications.value.find(n => n.id === id) as any
+  if (notif) notif.read = 1
+}
+
 onMounted(loadNotifications)
 </script>
 
@@ -51,13 +65,22 @@ onMounted(loadNotifications)
     <div>
       <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
         <h1 class="text-xl font-bold">{{ t('nav.notifications') }}</h1>
-        <button
-          v-if="notifications.length > 0"
-          @click="clearAll"
-          class="text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
-        >
-          {{ t('notification.clearAll') }}
-        </button>
+        <div class="flex items-center gap-3">
+          <button
+            v-if="notificationsStore.unreadCount > 0"
+            @click="markAllRead"
+            class="text-sm text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+          >
+            {{ t('notification.markAllRead') }}
+          </button>
+          <button
+            v-if="notifications.length > 0"
+            @click="clearAll"
+            class="text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
+          >
+            {{ t('notification.clearAll') }}
+          </button>
+        </div>
       </header>
 
       <!-- Follow requests banner -->
@@ -83,6 +106,7 @@ onMounted(loadNotifications)
           v-for="notification in notifications"
           :key="notification.id"
           :notification="notification"
+          @mark-read="handleMarkRead"
         />
 
         <div v-if="!loading && notifications.length === 0" class="p-8 text-center text-gray-500 dark:text-gray-400">

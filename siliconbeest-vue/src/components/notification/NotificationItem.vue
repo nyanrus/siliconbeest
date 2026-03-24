@@ -10,6 +10,16 @@ const props = defineProps<{
   notification: Notification
 }>()
 
+const emit = defineEmits<{
+  'mark-read': [id: string]
+}>()
+
+function handleClick() {
+  if (!(props.notification as any).read) {
+    emit('mark-read', props.notification.id)
+  }
+}
+
 const typeConfig: Record<string, { icon: string; color: string }> = {
   follow: { icon: '👤', color: 'text-indigo-600 dark:text-indigo-400' },
   favourite: { icon: '⭐', color: 'text-yellow-500' },
@@ -34,7 +44,11 @@ const config = computed(() => {
 </script>
 
 <template>
-  <div class="flex gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+  <div
+    @click="handleClick"
+    class="flex gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+    :class="{ 'bg-indigo-50/50 dark:bg-indigo-900/10': !(notification as any).read }"
+  >
     <!-- Type icon -->
     <div class="flex-shrink-0 w-10 flex justify-end">
       <span :class="config.color" class="text-lg" aria-hidden="true">

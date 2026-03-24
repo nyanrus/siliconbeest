@@ -34,11 +34,17 @@ export async function apiFetch<T>(
     headers['Authorization'] = `Bearer ${opts.token}`;
   }
 
-  const { token: _, headers: __, ...fetchOpts } = opts ?? {};
+  const { token: _, headers: __, body: rawBody, ...fetchOpts } = opts ?? {};
+
+  // Auto-stringify body if it's an object (not FormData/string/etc)
+  const body = rawBody && typeof rawBody === 'object' && !(rawBody instanceof FormData) && !(rawBody instanceof Blob) && !(rawBody instanceof ArrayBuffer) && !(rawBody instanceof ReadableStream)
+    ? JSON.stringify(rawBody)
+    : rawBody;
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...fetchOpts,
     headers,
+    body: body as BodyInit | undefined,
   });
 
   if (!res.ok) {

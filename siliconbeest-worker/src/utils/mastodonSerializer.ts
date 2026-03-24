@@ -211,11 +211,12 @@ export function serializeNotification(
     status?: MastodonStatus | null;
   },
 ): MastodonNotification {
-  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null } = {
+  const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean } = {
     id: row.id,
     type: row.type as NotificationType,
     created_at: row.created_at,
     account: opts.account,
+    read: !!((row as any).read),
   };
 
   if (opts.status !== undefined) {

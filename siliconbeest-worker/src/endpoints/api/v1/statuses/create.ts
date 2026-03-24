@@ -371,7 +371,21 @@ app.post('/', authRequired, async (c) => {
       silent: 0,
     }));
 
-    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri, quoteUri });
+    // Fetch media attachments for AP Note
+    const { results: apMediaRows } = await c.env.DB.prepare(
+      'SELECT * FROM media_attachments WHERE status_id = ?1',
+    ).bind(statusId).all();
+    const apAttachments = (apMediaRows ?? []).map((m: any) => ({
+      url: `https://${domain}/media/${m.file_key}`,
+      mediaType: m.file_content_type || 'image/jpeg',
+      description: m.description || '',
+      width: m.width as number | null,
+      height: m.height as number | null,
+      blurhash: m.blurhash as string | null,
+      type: m.type || 'image',
+    }));
+
+    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri, quoteUri, attachments: apAttachments });
 
     // Override inReplyTo with the parent status URI (not internal DB ID)
     if (inReplyToId) {

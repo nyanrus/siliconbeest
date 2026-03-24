@@ -115,6 +115,19 @@ export async function handleTimelineFanout(
         // Fetch custom emojis referenced in content
         const statusEmojis = await fetchEmojisForContent(env.DB, statusRow.content as string | null);
 
+        // Fetch media attachments
+        const { results: streamMediaRows } = await env.DB.prepare(
+          'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
+        ).bind(statusId).all();
+        const streamMedia = (streamMediaRows ?? []).map((m: any) => ({
+          id: m.id, type: m.type || 'image',
+          url: `https://${(statusRow as any).domain ? (statusRow as any).domain : 'siliconbeest.sjang.dev'}/media/${m.file_key}`,
+          preview_url: `https://${(statusRow as any).domain ? (statusRow as any).domain : 'siliconbeest.sjang.dev'}/media/${m.file_key}`,
+          remote_url: null, text_url: null,
+          meta: m.width ? { original: { width: m.width, height: m.height } } : null,
+          description: m.description || null, blurhash: m.blurhash || null,
+        }));
+
         let statusPayload = JSON.stringify({
           id: statusRow.id,
           uri: statusRow.uri,
@@ -131,7 +144,7 @@ export async function handleTimelineFanout(
           favourites_count: statusRow.favourites_count || 0,
           replies_count: statusRow.replies_count || 0,
           edited_at: statusRow.edited_at,
-          media_attachments: [],
+          media_attachments: streamMedia,
           mentions: [],
           tags: [],
           emojis: statusEmojis,
@@ -259,6 +272,18 @@ export async function handleTimelineFanout(
 
   if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
     const pubEmojis = await fetchEmojisForContent(env.DB, publicStatusRow.content as string | null);
+    // Fetch media for public streaming
+    const { results: pubMediaRows } = await env.DB.prepare(
+      'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
+    ).bind(publicStatusRow.id).all();
+    const pubMedia = (pubMediaRows ?? []).map((m: any) => ({
+      id: m.id, type: m.type || 'image',
+      url: `https://siliconbeest.sjang.dev/media/${m.file_key}`,
+      preview_url: `https://siliconbeest.sjang.dev/media/${m.file_key}`,
+      remote_url: null, text_url: null,
+      meta: m.width ? { original: { width: m.width, height: m.height } } : null,
+      description: m.description || null, blurhash: m.blurhash || null,
+    }));
     let pubPayload = JSON.stringify({
       id: publicStatusRow.id, uri: publicStatusRow.uri, created_at: publicStatusRow.created_at,
       content: publicStatusRow.content, visibility: publicStatusRow.visibility,
@@ -269,7 +294,7 @@ export async function handleTimelineFanout(
       reblogs_count: publicStatusRow.reblogs_count || 0,
       favourites_count: publicStatusRow.favourites_count || 0,
       replies_count: publicStatusRow.replies_count || 0, edited_at: publicStatusRow.edited_at,
-      media_attachments: [], mentions: [], tags: [], emojis: pubEmojis,
+      media_attachments: pubMedia, mentions: [], tags: [], emojis: pubEmojis,
       reblog: null as any, poll: null, card: null, application: null, text: null, filtered: [],
       account: {
         id: publicStatusRow.account_id, username: publicStatusRow.username,

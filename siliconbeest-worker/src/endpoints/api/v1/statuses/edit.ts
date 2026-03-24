@@ -181,11 +181,24 @@ app.put('/:id', authRequired, async (c) => {
           const convRow = await c.env.DB.prepare('SELECT ap_uri FROM conversations WHERE id = ?1').bind(updatedRow.conversation_id).first<{ ap_uri: string | null }>();
           editConvApUri = convRow?.ap_uri ?? null;
         }
+        // Fetch media for AP Note
+        const { results: editMediaRows } = await c.env.DB.prepare(
+          'SELECT * FROM media_attachments WHERE status_id = ?1',
+        ).bind(statusId).all();
+        const editAttachments = (editMediaRows ?? []).map((m: any) => ({
+          url: `https://${domain}/media/${m.file_key}`,
+          mediaType: m.file_content_type || 'image/jpeg',
+          description: m.description || '',
+          width: m.width as number | null,
+          height: m.height as number | null,
+          blurhash: m.blurhash as string | null,
+          type: m.type || 'image',
+        }));
         const note = serializeNote(
           updatedRow as unknown as StatusRow,
           accountRow as unknown as AccountRow,
           domain,
-          { conversationApUri: editConvApUri },
+          { conversationApUri: editConvApUri, attachments: editAttachments },
         );
         // Override inReplyTo with parent URI
         if (updatedRow.in_reply_to_id) {

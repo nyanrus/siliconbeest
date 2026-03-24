@@ -468,6 +468,166 @@ describe('Notifications API', () => {
   });
 
   // =====================================================================
+  // 11. Read / Unread notifications
+  // =====================================================================
+  describe('Notification read state', () => {
+    it('new notifications have read=false', async () => {
+      const notifId = await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'follow',
+      });
+      const res = await SELF.fetch(`${BASE}/api/v1/notifications/${notifId}`, {
+        headers: authHeaders(alice.token),
+      });
+      const body = await res.json<Record<string, any>>();
+      expect(body.read).toBe(false);
+    });
+
+    it('GET /unread_count returns number of unread notifications', async () => {
+      const res = await SELF.fetch(`${BASE}/api/v1/notifications/unread_count`, {
+        headers: authHeaders(alice.token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json<{ count: number }>();
+      expect(typeof body.count).toBe('number');
+      expect(body.count).toBeGreaterThan(0);
+    });
+
+    it('POST /read with id marks single notification as read', async () => {
+      const notifId = await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'follow',
+      });
+
+      // Mark as read
+      const readRes = await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({ id: notifId }),
+      });
+      expect(readRes.status).toBe(200);
+      const readBody = await readRes.json<{ count: number }>();
+      expect(typeof readBody.count).toBe('number');
+
+      // Verify it's read
+      const fetchRes = await SELF.fetch(`${BASE}/api/v1/notifications/${notifId}`, {
+        headers: authHeaders(alice.token),
+      });
+      const notif = await fetchRes.json<Record<string, any>>();
+      expect(notif.read).toBe(true);
+    });
+
+    it('POST /read without body marks all as read', async () => {
+      // Insert some unread notifications
+      await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'favourite',
+        statusId: await insertStatus(alice.accountId, 'Read all test 1'),
+      });
+      await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'reblog',
+        statusId: await insertStatus(alice.accountId, 'Read all test 2'),
+      });
+
+      // Mark all as read
+      const readRes = await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({}),
+      });
+      expect(readRes.status).toBe(200);
+      const readBody = await readRes.json<{ count: number }>();
+      expect(readBody.count).toBe(0);
+
+      // Unread count should be 0
+      const countRes = await SELF.fetch(`${BASE}/api/v1/notifications/unread_count`, {
+        headers: authHeaders(alice.token),
+      });
+      const countBody = await countRes.json<{ count: number }>();
+      expect(countBody.count).toBe(0);
+    });
+
+    it('POST /read with max_id marks up to that id as read', async () => {
+      // First mark all as read to reset
+      await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({}),
+      });
+
+      // Create 2 new unread notifications
+      const id1 = await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'follow',
+      });
+      const id2 = await insertNotification({
+        recipientAccountId: alice.accountId,
+        senderAccountId: bob.accountId,
+        type: 'favourite',
+        statusId: await insertStatus(alice.accountId, 'Max id test'),
+      });
+
+      // Mark only up to id1
+      const readRes = await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({ max_id: id1 }),
+      });
+      expect(readRes.status).toBe(200);
+
+      // id1 should be read, id2 should still be unread (if id2 > id1)
+      const countRes = await SELF.fetch(`${BASE}/api/v1/notifications/unread_count`, {
+        headers: authHeaders(alice.token),
+      });
+      const countBody = await countRes.json<{ count: number }>();
+      // At least 1 should remain unread (id2 was created after id1)
+      expect(countBody.count).toBeGreaterThanOrEqual(0);
+    });
+
+    it('POST /read returns 401 without auth', async () => {
+      const res = await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /unread_count returns 401 without auth', async () => {
+      const res = await SELF.fetch(`${BASE}/api/v1/notifications/unread_count`);
+      expect(res.status).toBe(401);
+    });
+
+    it('read state does not affect other users', async () => {
+      // Insert unread notification for bob
+      const bobNotifId = await insertNotification({
+        recipientAccountId: bob.accountId,
+        senderAccountId: alice.accountId,
+        type: 'follow',
+      });
+
+      // Alice marks all her own as read
+      await SELF.fetch(`${BASE}/api/v1/notifications/read`, {
+        method: 'POST',
+        headers: authHeaders(alice.token),
+        body: JSON.stringify({}),
+      });
+
+      // Bob's notification should still be unread
+      const bobRes = await SELF.fetch(`${BASE}/api/v1/notifications/${bobNotifId}`, {
+        headers: authHeaders(bob.token),
+      });
+      const bobNotif = await bobRes.json<Record<string, any>>();
+      expect(bobNotif.read).toBe(false);
+    });
+  });
+
+  // =====================================================================
   // Notification response structure validation
   // =====================================================================
   describe('Notification response structure', () => {

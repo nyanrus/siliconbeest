@@ -37,14 +37,14 @@ const gridClass = computed(() => {
       v-for="(attachment, index) in attachments.slice(0, 4)"
       :key="attachment.id"
       @click="emit('expand', index)"
-      class="relative aspect-video bg-gray-200 dark:bg-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      class="group relative aspect-video bg-gray-200 dark:bg-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-zoom-in"
       :class="{ 'row-span-2': attachments.length === 3 && index === 0 }"
     >
       <img
         v-if="attachment.type === 'image' || attachment.type === 'gifv'"
         :src="attachment.preview_url ?? attachment.url"
         :alt="attachment.description || t('status.media_no_alt')"
-        class="w-full h-full object-cover"
+        class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
         loading="lazy"
       />
       <video
@@ -55,6 +55,13 @@ const gridClass = computed(() => {
         loop
         playsinline
       />
+
+      <!-- Hover overlay with zoom icon -->
+      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 flex items-center justify-center">
+        <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-80 transition-opacity duration-200 drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+        </svg>
+      </div>
 
       <!-- Alt badge -->
       <span

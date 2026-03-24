@@ -92,6 +92,29 @@ app.get('/:username/outbox', async (c) => {
 
   const followersUri = `${actorUri}/followers`;
 
+  // Batch fetch media attachments for all statuses
+  const statusIds = rows.map((s) => s.id);
+  const mediaMap = new Map<string, any[]>();
+  if (statusIds.length > 0) {
+    const ph = statusIds.map(() => '?').join(',');
+    const { results: allMedia } = await c.env.DB.prepare(
+      `SELECT * FROM media_attachments WHERE status_id IN (${ph})`,
+    ).bind(...statusIds).all();
+    for (const m of (allMedia ?? []) as Record<string, unknown>[]) {
+      const sid = m.status_id as string;
+      if (!mediaMap.has(sid)) mediaMap.set(sid, []);
+      mediaMap.get(sid)!.push({
+        url: `https://${domain}/media/${m.file_key}`,
+        mediaType: (m.file_content_type as string) || 'image/jpeg',
+        description: (m.description as string) || '',
+        width: m.width as number | null,
+        height: m.height as number | null,
+        blurhash: m.blurhash as string | null,
+        type: (m.type as string) || 'image',
+      });
+    }
+  }
+
   const orderedItems = rows.map((status) => {
     // Reblogs become Announce activities
     if (status.reblog_of_id) {
@@ -110,7 +133,8 @@ app.get('/:username/outbox', async (c) => {
 
     // Regular posts become Create activities
     const conversationApUri = status.conversation_id ? convMap.get(status.conversation_id) ?? null : null;
-    const note = serializeNote(status, account, domain, { conversationApUri });
+    const attachments = mediaMap.get(status.id) ?? [];
+    const note = serializeNote(status, account, domain, { conversationApUri, attachments });
     return {
       '@context': ['https://www.w3.org/ns/activitystreams'],
       id: `${status.uri}/activity`,
