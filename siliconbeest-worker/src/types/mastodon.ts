@@ -102,6 +102,8 @@ export interface Status {
   in_reply_to_id: string | null;
   in_reply_to_account_id: string | null;
   reblog: Status | null;
+  /** FEP-e232: Quoted status (quote post) */
+  quote?: Status | null;
   poll: Poll | null;
   card: PreviewCard | null;
   language: string | null;

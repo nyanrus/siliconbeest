@@ -77,6 +77,7 @@ export async function resolveWebFinger(
 		response = await fetch(webfingerUrl, {
 			headers: {
 				Accept: 'application/jrd+json, application/json',
+				'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 			},
 		});
 	} catch {
@@ -155,6 +156,8 @@ export async function resolveWebFinger(
 export async function fetchRemoteActor(
 	actorUri: string,
 	cache?: KVNamespace,
+	db?: any, // D1Database for signed fetch
+	instanceDomain?: string,
 ): Promise<any | null> {
 	const cacheKey = `remote_actor:${actorUri}`;
 
@@ -170,18 +173,52 @@ export async function fetchRemoteActor(
 		}
 	}
 
+	// Try unsigned fetch first
 	let response: Response;
 	try {
 		response = await fetch(actorUri, {
 			headers: {
 				Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+				'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 			},
 		});
-	} catch {
+	} catch (err) {
+		console.error(`[fetchRemoteActor] Network error fetching ${actorUri}:`, err);
 		return null;
 	}
 
+	// If 401/403, retry with HTTP Signature using instance actor key
+	if ((response.status === 401 || response.status === 403) && db && instanceDomain) {
+		try {
+			const keyRow = await db.prepare(
+				`SELECT ak.private_key, ak.key_id FROM actor_keys ak WHERE ak.account_id = '__instance__' LIMIT 1`,
+			).first<{ private_key: string; key_id: string }>();
+
+			if (keyRow) {
+				const { signRequest } = await import('./httpSignatures');
+				const signedHeaders = await signRequest(
+					keyRow.private_key,
+					keyRow.key_id,
+					actorUri,
+					'GET',
+				);
+				response = await fetch(actorUri, {
+					method: 'GET',
+					headers: {
+						Accept: 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
+						'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
+						...signedHeaders,
+					},
+				});
+				console.log(`[fetchRemoteActor] Signed fetch ${response.status} for ${actorUri}`);
+			}
+		} catch (signErr) {
+			console.error(`[fetchRemoteActor] Signed fetch error:`, signErr);
+		}
+	}
+
 	if (!response.ok) {
+		console.warn(`[fetchRemoteActor] HTTP ${response.status} for ${actorUri}`);
 		return null;
 	}
 

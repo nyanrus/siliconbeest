@@ -70,6 +70,8 @@ export interface ActorKeyRow {
   public_key: string;
   private_key: string;
   key_id: string;
+  ed25519_public_key: string | null;
+  ed25519_private_key: string | null;
   created_at: string;
 }
 
@@ -97,6 +99,8 @@ export interface StatusRow {
   edited_at: string | null;
   deleted_at: string | null;
   poll_id: string | null;
+  /** FEP-e232: ID of the status being quoted (quote post) */
+  quote_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -108,7 +108,7 @@ app.get('/', authOptional, async (c) => {
         silenced_at: null, memorial: (rr.a_memorial as number) || 0, moved_to_account_id: rr.a_moved_to_account_id as string | null,
       };
       const origE = enrichments.get(rr.id as string);
-      reblogMap.set(rr.id as string, serializeStatus(rr as StatusRow, {
+      reblogMap.set(rr.id as string, serializeStatus(rr as unknown as StatusRow, {
         account: serializeAccount(origAccountRow),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,

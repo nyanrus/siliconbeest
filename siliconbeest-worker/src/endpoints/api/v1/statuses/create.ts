@@ -38,6 +38,8 @@ app.post('/', authRequired, async (c) => {
     spoiler_text?: string;
     visibility?: string;
     language?: string;
+    /** FEP-e232: ID of the status to quote */
+    quote_id?: string;
   };
   try {
     body = await c.req.json();
@@ -80,6 +82,19 @@ app.post('/', authRequired, async (c) => {
     }
   }
 
+  // FEP-e232: Resolve quote post
+  let quoteId: string | null = null;
+  let quoteUri: string | null = null;
+  if (body.quote_id) {
+    const quoted = await c.env.DB.prepare(
+      'SELECT id, uri FROM statuses WHERE id = ?1 AND deleted_at IS NULL',
+    ).bind(body.quote_id).first();
+    if (quoted) {
+      quoteId = quoted.id as string;
+      quoteUri = quoted.uri as string;
+    }
+  }
+
   let conversationApUri: string | null = null;
   if (!conversationId) {
     conversationId = generateULID();
@@ -98,13 +113,13 @@ app.post('/', authRequired, async (c) => {
 
   const stmts = [
     c.env.DB.prepare(
-      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, local, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1, ?15, ?15)`,
+      `INSERT INTO statuses (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id, text, content, content_warning, visibility, sensitive, language, conversation_id, reply, quote_id, local, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 1, ?16, ?16)`,
     ).bind(
       statusId, statusUri, statusUrl, currentUser.account_id,
       inReplyToId, inReplyToAccountId,
       statusText, content, spoilerText, visibility, sensitive, language,
-      conversationId, isReply, now,
+      conversationId, isReply, quoteId, now,
     ),
     c.env.DB.prepare(
       'UPDATE accounts SET statuses_count = statuses_count + 1, last_status_at = ?1 WHERE id = ?2',
@@ -313,6 +328,7 @@ app.post('/', authRequired, async (c) => {
       edited_at: null,
       deleted_at: null,
       poll_id: null,
+      quote_id: quoteId,
       created_at: now,
       updated_at: now,
     };
@@ -355,7 +371,7 @@ app.post('/', authRequired, async (c) => {
       silent: 0,
     }));
 
-    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri });
+    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri, quoteUri });
 
     // Override inReplyTo with the parent status URI (not internal DB ID)
     if (inReplyToId) {
@@ -459,6 +475,84 @@ app.post('/', authRequired, async (c) => {
     blurhash: (m.blurhash as string) || null,
   }));
 
+  // FEP-e232: Resolve quoted status for API response
+  let quoteStatus: Record<string, unknown> | null = null;
+  if (quoteId) {
+    const quotedRow = await c.env.DB.prepare(
+      `SELECT s.*, a.username AS account_username, a.domain AS account_domain,
+        a.display_name AS account_display_name, a.note AS account_note,
+        a.uri AS account_uri, a.url AS account_url,
+        a.avatar_url AS account_avatar_url, a.avatar_static_url AS account_avatar_static_url,
+        a.header_url AS account_header_url, a.header_static_url AS account_header_static_url,
+        a.locked AS account_locked, a.bot AS account_bot, a.discoverable AS account_discoverable,
+        a.followers_count AS account_followers_count, a.following_count AS account_following_count,
+        a.statuses_count AS account_statuses_count, a.last_status_at AS account_last_status_at,
+        a.created_at AS account_created_at
+      FROM statuses s JOIN accounts a ON a.id = s.account_id
+      WHERE s.id = ?1 AND s.deleted_at IS NULL`,
+    ).bind(quoteId).first();
+    if (quotedRow) {
+      const qAcct = quotedRow.account_domain
+        ? `${quotedRow.account_username}@${quotedRow.account_domain}`
+        : (quotedRow.account_username as string);
+      quoteStatus = {
+        id: quotedRow.id as string,
+        created_at: quotedRow.created_at as string,
+        in_reply_to_id: (quotedRow.in_reply_to_id as string) || null,
+        in_reply_to_account_id: (quotedRow.in_reply_to_account_id as string) || null,
+        sensitive: !!(quotedRow.sensitive),
+        spoiler_text: (quotedRow.content_warning as string) || '',
+        visibility: (quotedRow.visibility as string) || 'public',
+        language: (quotedRow.language as string) || 'en',
+        uri: quotedRow.uri as string,
+        url: (quotedRow.url as string) || null,
+        replies_count: (quotedRow.replies_count as number) || 0,
+        reblogs_count: (quotedRow.reblogs_count as number) || 0,
+        favourites_count: (quotedRow.favourites_count as number) || 0,
+        favourited: false,
+        reblogged: false,
+        muted: false,
+        bookmarked: false,
+        pinned: false,
+        content: (quotedRow.content as string) || '',
+        reblog: null,
+        quote: null,
+        application: null,
+        account: {
+          id: quotedRow.account_id as string,
+          username: quotedRow.account_username as string,
+          acct: qAcct,
+          display_name: (quotedRow.account_display_name as string) || '',
+          locked: !!(quotedRow.account_locked),
+          bot: !!(quotedRow.account_bot),
+          discoverable: !!(quotedRow.account_discoverable),
+          group: false,
+          created_at: quotedRow.account_created_at as string,
+          note: (quotedRow.account_note as string) || '',
+          url: (quotedRow.account_url as string) || `https://${domain}/@${quotedRow.account_username}`,
+          uri: quotedRow.account_uri as string,
+          avatar: (quotedRow.account_avatar_url as string) || null,
+          avatar_static: (quotedRow.account_avatar_static_url as string) || null,
+          header: (quotedRow.account_header_url as string) || null,
+          header_static: (quotedRow.account_header_static_url as string) || null,
+          followers_count: (quotedRow.account_followers_count as number) || 0,
+          following_count: (quotedRow.account_following_count as number) || 0,
+          statuses_count: (quotedRow.account_statuses_count as number) || 0,
+          last_status_at: (quotedRow.account_last_status_at as string) || null,
+          emojis: [],
+          fields: [],
+        },
+        media_attachments: [],
+        mentions: [],
+        tags: [],
+        emojis: [],
+        card: null,
+        poll: null,
+        edited_at: (quotedRow.edited_at as string) || null,
+      };
+    }
+  }
+
   return c.json({
     id: statusId,
     created_at: now,
@@ -480,6 +574,7 @@ app.post('/', authRequired, async (c) => {
     pinned: false,
     content,
     reblog: null,
+    quote: quoteStatus,
     application: null,
     account: accountData,
     media_attachments: mediaAttachments,

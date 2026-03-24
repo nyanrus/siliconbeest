@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 import { generateUlid } from '../../utils/ulid';
+import { encodeEd25519PublicKeyMultibase } from '../../utils/crypto';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -44,7 +45,7 @@ app.get('/', async (c) => {
 	// Check if instance actor key exists
 	let actorKey = await c.env.DB.prepare(
 		"SELECT * FROM actor_keys WHERE account_id = '__instance__'",
-	).first<{ id: string; public_key: string; private_key: string; key_id: string }>();
+	).first<{ id: string; public_key: string; private_key: string; key_id: string; ed25519_public_key: string | null }>();
 
 	// Lazy-init: generate keypair if not exists
 	if (!actorKey) {
@@ -92,29 +93,55 @@ app.get('/', async (c) => {
 		};
 	}
 
-	return c.json(
-		{
-			'@context': [
-				'https://www.w3.org/ns/activitystreams',
-				'https://w3id.org/security/v1',
-			],
-			id: `https://${domain}/actor`,
-			type: 'Application',
-			preferredUsername: domain,
-			name: c.env.INSTANCE_TITLE || 'SiliconBeest',
-			inbox: `https://${domain}/inbox`,
-			outbox: `https://${domain}/outbox`,
-			url: `https://${domain}/about`,
-			publicKey: {
-				id: `https://${domain}/actor#main-key`,
-				owner: `https://${domain}/actor`,
-				publicKeyPem: actorKey.public_key,
+	const actorId = `https://${domain}/actor`;
+
+	// Build context with Multikey extension if Ed25519 key is available
+	const context: (string | Record<string, unknown>)[] = [
+		'https://www.w3.org/ns/activitystreams',
+		'https://w3id.org/security/v1',
+	];
+	if (actorKey.ed25519_public_key) {
+		context.push({
+			'Multikey': 'https://w3id.org/security#Multikey',
+			'publicKeyMultibase': 'https://w3id.org/security#publicKeyMultibase',
+			'assertionMethod': {
+				'@id': 'https://w3id.org/security#assertionMethod',
+				'@type': '@id',
+				'@container': '@set',
 			},
-			endpoints: { sharedInbox: `https://${domain}/inbox` },
+		});
+	}
+
+	const actorDoc: Record<string, unknown> = {
+		'@context': context,
+		id: actorId,
+		type: 'Application',
+		preferredUsername: domain,
+		name: c.env.INSTANCE_TITLE || 'SiliconBeest',
+		summary: `Instance actor for ${domain}`,
+		inbox: `https://${domain}/inbox`,
+		outbox: `https://${domain}/outbox`,
+		url: `https://${domain}/about`,
+		manuallyApprovesFollowers: true,
+		publicKey: {
+			id: `${actorId}#main-key`,
+			owner: actorId,
+			publicKeyPem: actorKey.public_key,
 		},
-		200,
-		{ 'Content-Type': 'application/activity+json' },
-	);
+		endpoints: { sharedInbox: `https://${domain}/inbox` },
+	};
+
+	// Include Ed25519 assertionMethod if available
+	if (actorKey.ed25519_public_key) {
+		actorDoc.assertionMethod = [{
+			id: `${actorId}#ed25519-key`,
+			type: 'Multikey',
+			controller: actorId,
+			publicKeyMultibase: encodeEd25519PublicKeyMultibase(actorKey.ed25519_public_key),
+		}];
+	}
+
+	return c.json(actorDoc, 200, { 'Content-Type': 'application/activity+json' });
 });
 
 export default app;

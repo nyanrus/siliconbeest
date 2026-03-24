@@ -120,6 +120,17 @@ app.post('/', async (c) => {
   const pubKeyPem = `-----BEGIN PUBLIC KEY-----\n${btoa(String.fromCharCode(...new Uint8Array(pubKeyData)))}\n-----END PUBLIC KEY-----`;
   const privKeyPem = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...new Uint8Array(privKeyData)))}\n-----END PRIVATE KEY-----`;
 
+  // Generate Ed25519 keypair for Object Integrity Proofs (FEP-8b32)
+  const ed25519KeyPair = await crypto.subtle.generateKey(
+    'Ed25519',
+    true,
+    ['sign', 'verify'],
+  ) as CryptoKeyPair;
+  const ed25519PubRaw = await crypto.subtle.exportKey('raw', ed25519KeyPair.publicKey) as ArrayBuffer;
+  const ed25519PrivPkcs8 = await crypto.subtle.exportKey('pkcs8', ed25519KeyPair.privateKey) as ArrayBuffer;
+  const ed25519PubB64 = btoa(String.fromCharCode(...new Uint8Array(ed25519PubRaw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const ed25519PrivB64 = btoa(String.fromCharCode(...new Uint8Array(ed25519PrivPkcs8))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
   const approved = regMode === 'approval' ? 0 : 1;
 
   // Generate default avatar and header images
@@ -137,9 +148,9 @@ app.post('/', async (c) => {
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'user', ?7, ?6, ?6)`,
     ).bind(userId, accountId, body.email, encryptedPassword, body.locale || 'en', now, approved),
     c.env.DB.prepare(
-      `INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
-    ).bind(keyId, accountId, pubKeyPem, privKeyPem, `${actorUri}#main-key`, now),
+      `INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, ed25519_public_key, ed25519_private_key, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    ).bind(keyId, accountId, pubKeyPem, privKeyPem, `${actorUri}#main-key`, ed25519PubB64, ed25519PrivB64, now),
   ]);
 
   const account = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(accountId).first();

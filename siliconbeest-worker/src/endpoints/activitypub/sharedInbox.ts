@@ -1,8 +1,14 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 import type { APActivity } from '../../types/activitypub';
-import { verifySignature } from '../../federation/httpSignatures';
+import {
+	verifySignature,
+	verifySignatureRFC9421,
+	extractKeyIdFromSignatureInput,
+} from '../../federation/httpSignatures';
+import { verifyLDSignature } from '../../federation/ldSignatures';
 import { processInboxActivity } from '../../federation/inboxProcessors';
+import { maybeForwardActivity } from '../../federation/activityForwarder';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -54,14 +60,43 @@ async function fetchActorPublicKey(
 }
 
 /**
- * Parse the keyId from the Signature header.
+ * Extract the keyId from the request. Checks RFC 9421 Signature-Input
+ * first, then falls back to draft-cavage Signature header.
  */
 function extractKeyId(request: Request): string | null {
+	// RFC 9421: keyid is in Signature-Input header
+	const signatureInputHeader = request.headers.get('Signature-Input');
+	if (signatureInputHeader) {
+		const keyId = extractKeyIdFromSignatureInput(signatureInputHeader);
+		if (keyId) return keyId;
+	}
+
+	// Draft-cavage: keyId is in the Signature header
 	const sigHeader = request.headers.get('Signature');
 	if (!sigHeader) return null;
 
 	const match = sigHeader.match(/keyId="([^"]*)"/);
 	return match?.[1] ?? null;
+}
+
+/**
+ * Determine which signature scheme the request uses and verify accordingly.
+ */
+async function verifyRequestSignature(
+	request: Request,
+	publicKeyPem: string,
+	rawBody: string,
+): Promise<boolean> {
+	// If Signature-Input header is present, use RFC 9421 verification
+	if (request.headers.has('Signature-Input')) {
+		const rfc9421Valid = await verifySignatureRFC9421(request, publicKeyPem, rawBody);
+		if (rfc9421Valid) return true;
+		// If RFC 9421 fails, don't fall back — the sender explicitly used RFC 9421
+		return false;
+	}
+
+	// Otherwise, use draft-cavage verification
+	return verifySignature(request, publicKeyPem, rawBody);
 }
 
 app.post('/', async (c) => {
@@ -78,20 +113,38 @@ app.post('/', async (c) => {
 		return c.json({ error: 'Invalid activity: missing type or actor' }, 400);
 	}
 
-	// Verify HTTP Signature
+	// Verify HTTP Signature, fall back to LD signature
 	const keyId = extractKeyId(c.req.raw);
-	if (!keyId) {
-		return c.json({ error: 'Missing HTTP Signature' }, 401);
+	let signatureVerified = false;
+
+	if (keyId) {
+		const publicKeyPem = await fetchActorPublicKey(keyId, c.env);
+		if (publicKeyPem) {
+			signatureVerified = await verifyRequestSignature(c.req.raw, publicKeyPem, rawBody);
+		}
 	}
 
-	const publicKeyPem = await fetchActorPublicKey(keyId, c.env);
-	if (!publicKeyPem) {
-		return c.json({ error: 'Could not retrieve actor public key' }, 401);
+	// Fall back to Linked Data Signature if no HTTP signature or it failed
+	if (!signatureVerified && activity.signature) {
+		const ldKeyId = activity.signature.creator;
+		const ldPublicKeyPem = await fetchActorPublicKey(ldKeyId, c.env);
+		if (ldPublicKeyPem) {
+			signatureVerified = await verifyLDSignature(activity, ldPublicKeyPem);
+		}
 	}
 
-	const isValid = await verifySignature(c.req.raw, publicKeyPem, rawBody);
-	if (!isValid) {
-		return c.json({ error: 'Invalid HTTP Signature' }, 401);
+	if (!signatureVerified) {
+		return c.json({ error: 'Invalid or missing signature' }, 401);
+	}
+
+	// Idempotency check: skip if we have already processed this activity
+	if (activity.id) {
+		const seenKey = `activity-seen:${activity.id}`;
+		const seen = await c.env.CACHE.get(seenKey);
+		if (seen) {
+			console.log(`[shared-inbox] Duplicate activity ${activity.id}, skipping`);
+			return c.body(null, 202);
+		}
 	}
 
 	console.log(`[shared-inbox] Received ${activity.type} from ${activity.actor}`);
@@ -177,6 +230,21 @@ app.post('/', async (c) => {
 				console.error(`[shared-inbox] Error processing ${activity.type} for ${username}:`, err);
 			}
 		}
+	}
+
+	// After processing, check if the activity should be forwarded
+	// to other servers (signature already verified above)
+	try {
+		await maybeForwardActivity(activity, rawBody, c.req.raw, c.env);
+	} catch (err) {
+		console.error(`[shared-inbox] Error forwarding activity:`, err);
+	}
+
+	// Mark activity as seen with 24h TTL
+	if (activity.id) {
+		await c.env.CACHE.put(`activity-seen:${activity.id}`, '1', {
+			expirationTtl: 86400,
+		});
 	}
 
 	return c.body(null, 202);

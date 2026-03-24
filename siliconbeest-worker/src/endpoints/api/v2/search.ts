@@ -44,8 +44,11 @@ app.get('/', authOptional, async (c) => {
     );
 
     // WebFinger resolution: if resolve=true and query looks like user@domain
-    if (resolve && /^@?[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q)) {
+    const looksLikeAcct = /^@?[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q);
+    console.log(`[search] resolve=${resolve}, looksLikeAcct=${looksLikeAcct}, q="${q}"`);
+    if (resolve && looksLikeAcct) {
       const webfingerResult = await resolveWebFinger(q, c.env.CACHE);
+      console.log(`[search] WebFinger result:`, webfingerResult ? webfingerResult.actorUri : 'null');
       if (webfingerResult) {
         // Check if we already have this actor in the DB
         const existingActor = await c.env.DB.prepare(
@@ -60,7 +63,13 @@ app.get('/', authOptional, async (c) => {
           }
         } else {
           // Fetch remote actor and upsert
-          const actorData = await fetchRemoteActor(webfingerResult.actorUri, c.env.CACHE);
+          let actorData: any = null;
+          try {
+            actorData = await fetchRemoteActor(webfingerResult.actorUri, c.env.CACHE, c.env.DB, c.env.INSTANCE_DOMAIN);
+          } catch (fetchErr) {
+            console.error('[search] fetchRemoteActor error:', fetchErr);
+          }
+          console.log('[search] actorData:', actorData ? `type=${actorData.type}, name=${actorData.preferredUsername}` : 'null');
           if (actorData) {
             const id = generateUlid();
             const now = new Date().toISOString();

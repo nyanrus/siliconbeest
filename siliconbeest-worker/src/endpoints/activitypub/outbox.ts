@@ -26,14 +26,14 @@ app.get('/:username/outbox', async (c) => {
   const page = c.req.query('page');
   const maxId = c.req.query('max_id');
 
+  const countRow = await c.env.DB.prepare(`
+    SELECT COUNT(*) AS cnt FROM statuses
+    WHERE account_id = ?1 AND visibility IN ('public', 'unlisted')
+      AND deleted_at IS NULL AND reblog_of_id IS NULL
+  `).bind(account.id).first<{ cnt: number }>();
+
   if (!page) {
     // Return the OrderedCollection summary
-    const countRow = await c.env.DB.prepare(`
-      SELECT COUNT(*) AS cnt FROM statuses
-      WHERE account_id = ?1 AND visibility IN ('public', 'unlisted')
-        AND deleted_at IS NULL AND reblog_of_id IS NULL
-    `).bind(account.id).first<{ cnt: number }>();
-
     return c.json({
       '@context': 'https://www.w3.org/ns/activitystreams',
       id: outboxUri,
@@ -95,10 +95,11 @@ app.get('/:username/outbox', async (c) => {
     };
   });
 
-  const pageObj: Record<string, any> = {
+  const pageObj: Record<string, unknown> = {
     '@context': 'https://www.w3.org/ns/activitystreams',
     id: maxId ? `${outboxUri}?page=true&max_id=${maxId}` : `${outboxUri}?page=true`,
     type: 'OrderedCollectionPage',
+    totalItems: countRow?.cnt ?? 0,
     partOf: outboxUri,
     orderedItems,
   };
@@ -106,6 +107,11 @@ app.get('/:username/outbox', async (c) => {
   if (rows.length === limit) {
     const lastId = rows[rows.length - 1].id;
     pageObj.next = `${outboxUri}?page=true&max_id=${lastId}`;
+  }
+
+  if (maxId) {
+    // Link back to the first page
+    pageObj.prev = `${outboxUri}?page=true`;
   }
 
   return c.json(pageObj, 200, {

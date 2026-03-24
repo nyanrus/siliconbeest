@@ -62,6 +62,13 @@ export interface APObject {
 // ACTOR
 // ============================================================
 
+export interface APMultikey {
+  id: string;
+  type: 'Multikey';
+  controller: string;
+  publicKeyMultibase: string;
+}
+
 export interface APActor extends APObject {
   type: 'Person' | 'Service' | 'Application' | 'Group' | 'Organization';
   preferredUsername: string;
@@ -72,6 +79,7 @@ export interface APActor extends APObject {
   featured?: string;
   featuredTags?: string;
   publicKey?: APPublicKey;
+  assertionMethod?: APMultikey[];
   endpoints?: APEndpoints;
   icon?: APImage | null;
   image?: APImage | null;
@@ -81,6 +89,8 @@ export interface APActor extends APObject {
   url?: string;
   movedTo?: string;
   alsoKnownAs?: string[];
+  attachment?: (APDocument | APPropertyValue)[];
+  tag?: APTag[];
 }
 
 // ============================================================
@@ -96,6 +106,14 @@ export interface APNote extends APObject {
   conversation?: string;
   replies?: APCollection | APOrderedCollection | string;
   atomUri?: string;
+  /** FEP-e232: Quote post URI */
+  quoteUri?: string;
+  // Misskey-specific extensions
+  _misskey_content?: string;      // MFM (Misskey Flavored Markdown) source
+  _misskey_summary?: string;      // CW text in MFM
+  _misskey_reaction?: string;     // Emoji reaction (used in Like activities)
+  _misskey_quote?: string;        // Quote post URI
+  _misskey_talk?: boolean;        // Chat message flag
 }
 
 // ============================================================
@@ -116,6 +134,16 @@ export interface APImage {
   type: 'Image';
   url: string;
   mediaType?: string;
+}
+
+// ============================================================
+// PROPERTY VALUE (Profile Metadata Fields)
+// ============================================================
+
+export interface APPropertyValue {
+  type: 'PropertyValue';
+  name: string;
+  value: string;
 }
 
 // ============================================================
@@ -147,6 +175,15 @@ export interface APEndpoints {
 // ACTIVITY (BASE)
 // ============================================================
 
+export interface APDataIntegrityProof {
+  type: 'DataIntegrityProof';
+  cryptosuite: string;
+  verificationMethod: string;
+  proofPurpose: string;
+  proofValue: string;
+  created: string;
+}
+
 export interface APActivity {
   '@context'?: APContext;
   id?: string;
@@ -159,6 +196,7 @@ export interface APActivity {
   cc?: APOneOrMany<string>;
   content?: string | null;
   signature?: APSignature;
+  proof?: APDataIntegrityProof;
 }
 
 export interface APSignature {

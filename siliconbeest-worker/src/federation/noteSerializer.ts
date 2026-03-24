@@ -26,6 +26,8 @@ export interface SerializeNoteOptions {
 	}[];
 	/** AP conversation URI (from conversations.ap_uri) */
 	conversationApUri?: string | null;
+	/** FEP-e232: URI of the quoted status (quote post) */
+	quoteUri?: string | null;
 }
 
 /**
@@ -154,6 +156,19 @@ export function serializeNote(
 			content: status.text,
 			mediaType: 'text/plain',
 		};
+		// Misskey compatibility: include raw text as _misskey_content
+		note._misskey_content = status.text;
+	}
+
+	// Misskey compatibility: include CW text as _misskey_summary
+	if (status.content_warning) {
+		note._misskey_summary = status.content_warning;
+	}
+
+	// FEP-e232: Quote post support
+	if (opts?.quoteUri) {
+		note.quoteUri = opts.quoteUri;
+		note._misskey_quote = opts.quoteUri;
 	}
 
 	return note;

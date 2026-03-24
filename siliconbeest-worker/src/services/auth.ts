@@ -1,5 +1,5 @@
 import { generateUlid } from '../utils/ulid';
-import { hashPassword, verifyPassword, generateToken, sha256 } from '../utils/crypto';
+import { hashPassword, verifyPassword, generateToken, sha256, generateEd25519KeyPair } from '../utils/crypto';
 import type { AccountRow, UserRow, ActorKeyRow } from '../types/db';
 
 /**
@@ -72,6 +72,7 @@ export class AuthService {
 
 		const encryptedPassword = await hashPassword(password);
 		const { publicKeyPem, privateKeyPem } = await this.generateActorKeyPair();
+		const ed25519Keys = await generateEd25519KeyPair();
 
 		const approved = registrationMode === 'open' ? 1 : 0;
 		const lowerUsername = username.toLowerCase();
@@ -95,8 +96,8 @@ export class AuthService {
 		);
 
 		const actorKeyStmt = this.db.prepare(
-			`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, ed25519_public_key, ed25519_private_key, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		);
 
 		const uri = `https://${domain}/users/${lowerUsername}`;
@@ -106,7 +107,7 @@ export class AuthService {
 		await this.db.batch([
 			accountStmt.bind(accountId, lowerUsername, lowerUsername, uri, url, now, now),
 			userStmt.bind(userId, accountId, email.toLowerCase(), encryptedPassword, now, approved, now, now),
-			actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, now),
+			actorKeyStmt.bind(actorKeyId, accountId, publicKeyPem, privateKeyPem, keyIdUri, ed25519Keys.publicKey, ed25519Keys.privateKey, now),
 		]);
 
 		const account = (await this.db.prepare('SELECT * FROM accounts WHERE id = ?').bind(accountId).first()) as AccountRow;

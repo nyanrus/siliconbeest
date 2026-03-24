@@ -1,9 +1,18 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 import { serializeActor } from '../../federation/actorSerializer';
-import type { AccountRow, ActorKeyRow } from '../../types/db';
+import type { AccountRow, ActorKeyRow, CustomEmojiRow } from '../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
+
+/**
+ * Extract custom emoji shortcodes from text (e.g. :custom_emoji:).
+ */
+function extractEmojiShortcodes(text: string): string[] {
+  const matches = text.match(/:([a-zA-Z0-9_]+):/g);
+  if (!matches) return [];
+  return [...new Set(matches.map((m) => m.replace(/:/g, '')))];
+}
 
 app.get('/:username', async (c) => {
   const username = c.req.param('username');
@@ -30,7 +39,20 @@ app.get('/:username', async (c) => {
     return c.json({ error: 'Actor key not found' }, 500);
   }
 
-  const actor = serializeActor(account, actorKey, domain);
+  // Look up custom emojis used in the display name or bio
+  const textToScan = `${account.display_name || ''} ${account.note || ''}`;
+  const shortcodes = extractEmojiShortcodes(textToScan);
+  let customEmojis: CustomEmojiRow[] = [];
+
+  if (shortcodes.length > 0) {
+    const placeholders = shortcodes.map((_, i) => `?${i + 1}`).join(', ');
+    const { results } = await c.env.DB.prepare(
+      `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND domain IS NULL`,
+    ).bind(...shortcodes).all();
+    customEmojis = (results ?? []) as unknown as CustomEmojiRow[];
+  }
+
+  const actor = serializeActor(account, actorKey, domain, { customEmojis });
 
   return c.json(actor, 200, {
     'Content-Type': 'application/activity+json; charset=utf-8',

@@ -16,8 +16,8 @@ describe('StatusActions', () => {
   it('renders all action buttons', () => {
     const wrapper = mountWithPlugins(StatusActions, { props: baseProps });
     const buttons = wrapper.findAll('button');
-    // reply, reblog, favourite, bookmark, share = 5 buttons
-    expect(buttons.length).toBe(5);
+    // reply, reblog, favourite, bookmark, share, more menu = 6 buttons
+    expect(buttons.length).toBe(6);
   });
 
   it('emits favourite event on favourite button click', async () => {

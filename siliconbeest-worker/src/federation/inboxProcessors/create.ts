@@ -118,13 +118,33 @@ export async function processCreate(
 		).bind(conversationId, now).run();
 	}
 
+	// Resolve content: prefer standard content, fall back to Misskey _misskey_content
+	const noteContent = note.content ?? (apNote._misskey_content ? apNote._misskey_content : '');
+
+	// Resolve content warning: prefer standard summary, fall back to Misskey _misskey_summary
+	const contentWarning = note.summary ?? (apNote._misskey_summary ? apNote._misskey_summary : '');
+
+	// FEP-e232: Resolve quote post URI
+	const quoteUri = apNote.quoteUri || apNote._misskey_quote || null;
+	let quoteId: string | null = null;
+	if (quoteUri) {
+		const quotedStatus = await env.DB.prepare(
+			`SELECT id FROM statuses WHERE uri = ?1 LIMIT 1`,
+		)
+			.bind(quoteUri)
+			.first<{ id: string }>();
+		if (quotedStatus) {
+			quoteId = quotedStatus.id;
+		}
+	}
+
 	// Insert the status
 	await env.DB.prepare(
 		`INSERT INTO statuses
 		 (id, uri, url, account_id, in_reply_to_id, in_reply_to_account_id,
 		  content, content_warning, visibility, sensitive, language,
-		  conversation_id, local, reply, created_at, updated_at)
-		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15)`,
+		  conversation_id, local, reply, quote_id, created_at, updated_at)
+		 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0, ?13, ?14, ?15, ?16)`,
 	)
 		.bind(
 			statusId,
@@ -133,13 +153,14 @@ export async function processCreate(
 			authorAccountId,
 			inReplyToId,
 			inReplyToAccountId,
-			note.content ?? '',
-			note.summary ?? '',
+			noteContent,
+			contentWarning,
 			visibility,
 			note.sensitive ? 1 : 0,
 			'en',
 			conversationId,
 			inReplyToId ? 1 : 0,
+			quoteId,
 			note.published ?? now,
 			now,
 		)

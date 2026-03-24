@@ -82,6 +82,8 @@ import apSharedInbox from './endpoints/activitypub/sharedInbox';
 import apOutbox from './endpoints/activitypub/outbox';
 import apFollowers from './endpoints/activitypub/followers';
 import apFollowing from './endpoints/activitypub/following';
+import apFeatured from './endpoints/activitypub/featured';
+import apFeaturedTags from './endpoints/activitypub/featuredTags';
 
 // -- Durable Object export --
 export { StreamingDO } from './durableObjects/streaming';
@@ -181,6 +183,8 @@ app.route('/users', apInbox);
 app.route('/users', apOutbox);
 app.route('/users', apFollowers);
 app.route('/users', apFollowing);
+app.route('/users', apFeatured);
+app.route('/users', apFeaturedTags);
 app.route('/actor', apInstanceActor);
 app.route('/inbox', apSharedInbox);
 

@@ -12,30 +12,35 @@ describe('Avatar', () => {
     expect(img.attributes('src')).toBe('https://example.com/avatar.png');
   });
 
-  it('renders initials fallback when no src', () => {
+  it('renders default avatar when no src', () => {
     const wrapper = mount(Avatar, {
       props: { alt: 'Test User' },
     });
-    expect(wrapper.text()).toContain('TU');
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toContain('data:image/svg+xml');
   });
 
-  it('renders single initial for single-word name', () => {
+  it('renders default avatar for single-word name', () => {
     const wrapper = mount(Avatar, {
       props: { alt: 'Admin' },
     });
-    expect(wrapper.text()).toContain('A');
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toContain('data:image/svg+xml');
   });
 
-  it('renders ? when alt is empty', () => {
+  it('renders default avatar when alt is empty', () => {
     const wrapper = mount(Avatar, { props: {} });
-    expect(wrapper.text()).toContain('?');
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
   });
 
-  it('does not render img when src is empty', () => {
+  it('always renders img element (uses default avatar)', () => {
     const wrapper = mount(Avatar, {
       props: { alt: 'Test' },
     });
-    expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.find('img').exists()).toBe(true);
   });
 
   it('applies size classes', () => {

@@ -124,6 +124,16 @@ export interface FetchPreviewCardMessage {
   url: string;
 }
 
+export interface ForwardActivityMessage {
+  type: 'forward_activity';
+  /** The raw JSON body of the original activity (preserving original bytes for signature) */
+  rawBody: string;
+  /** Original HTTP headers needed to preserve the signature */
+  originalHeaders: Record<string, string>;
+  /** Inbox URL of the local follower to forward to */
+  targetInboxUrl: string;
+}
+
 // ============================================================
 // DISCRIMINATED UNION
 // ============================================================
@@ -141,4 +151,5 @@ export type QueueMessage =
   | SendWebPushMessage
   | CleanupExpiredTokensMessage
   | UpdateTrendsMessage
-  | FetchPreviewCardMessage;
+  | FetchPreviewCardMessage
+  | ForwardActivityMessage;

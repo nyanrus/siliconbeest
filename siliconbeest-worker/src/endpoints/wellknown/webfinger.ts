@@ -37,11 +37,12 @@ app.get('/', async (c) => {
 	}
 
 	const actorUri = `https://${instanceDomain}/users/${account.username}`;
+	const profileUrl = `https://${instanceDomain}/@${account.username}`;
 
 	return c.json(
 		{
 			subject: `acct:${account.username}@${instanceDomain}`,
-			aliases: [actorUri],
+			aliases: [actorUri, profileUrl],
 			links: [
 				{
 					rel: 'self',
@@ -51,7 +52,11 @@ app.get('/', async (c) => {
 				{
 					rel: 'http://webfinger.net/rel/profile-page',
 					type: 'text/html',
-					href: `https://${instanceDomain}/@${account.username}`,
+					href: profileUrl,
+				},
+				{
+					rel: 'http://ostatus.org/schema/1.0/subscribe',
+					template: `https://${instanceDomain}/authorize_interaction?uri={uri}`,
 				},
 			],
 		},

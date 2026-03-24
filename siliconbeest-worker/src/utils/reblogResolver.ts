@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types';
+type D1Database = import('../env').Env['DB'];
 import { enrichStatuses } from './statusEnrichment';
 
 /**
