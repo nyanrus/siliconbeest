@@ -139,20 +139,27 @@ export async function processUpdate(
 			)
 			.run();
 
-		// Notify local followers about the update
-		const localFollowers = await env.DB.prepare(
-			`SELECT f.account_id FROM follows f
-			 JOIN accounts a ON a.id = f.account_id
-			 WHERE f.target_account_id = ?1 AND a.domain IS NULL`,
+		// Notify local users who interacted with this status (favourited, reblogged, or bookmarked)
+		// NOT all followers — Mastodon only sends 'update' notifications to users who engaged with the post
+		const interactedUsers = await env.DB.prepare(
+			`SELECT DISTINCT account_id FROM (
+				SELECT account_id FROM favourites WHERE status_id = ?1
+				UNION
+				SELECT account_id FROM statuses WHERE reblog_of_id = ?1 AND deleted_at IS NULL
+				UNION
+				SELECT account_id FROM bookmarks WHERE status_id = ?1
+			) sub
+			JOIN accounts a ON a.id = sub.account_id
+			WHERE a.domain IS NULL AND sub.account_id != ?2`,
 		)
-			.bind(actorAccount.id)
+			.bind(status.id, actorAccount.id)
 			.all<{ account_id: string }>();
 
-		if (localFollowers.results) {
-			for (const follower of localFollowers.results) {
+		if (interactedUsers.results) {
+			for (const user of interactedUsers.results) {
 				await env.QUEUE_INTERNAL.send({
 					type: 'create_notification',
-					recipientAccountId: follower.account_id,
+					recipientAccountId: user.account_id,
 					senderAccountId: actorAccount.id,
 					notificationType: 'update',
 					statusId: status.id,
