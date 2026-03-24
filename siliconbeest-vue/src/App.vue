@@ -6,6 +6,7 @@ import { useInstanceStore } from '@/stores/instance';
 import { useUiStore } from '@/stores/ui';
 import { useComposeStore } from '@/stores/compose';
 import { useTimelinesStore } from '@/stores/timelines';
+import { useNotificationsStore } from '@/stores/notifications';
 import Modal from '@/components/common/Modal.vue';
 import StatusComposer from '@/components/status/StatusComposer.vue';
 
@@ -14,6 +15,7 @@ const instance = useInstanceStore();
 const ui = useUiStore();
 const compose = useComposeStore();
 const timelinesStore = useTimelinesStore();
+const notifStore = useNotificationsStore();
 const router = useRouter();
 
 async function handleGlobalCompose(payload: { content: string; visibility?: string; spoiler_text?: string; language?: string }) {
@@ -37,6 +39,8 @@ onMounted(async () => {
   const promises: Promise<void>[] = [instance.init()];
   if (auth.isAuthenticated) {
     promises.push(auth.fetchCurrentUser());
+    promises.push(notifStore.fetch(auth.token!));
+    promises.push(notifStore.loadMarker(auth.token!));
   }
   await Promise.allSettled(promises);
 

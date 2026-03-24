@@ -4,10 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 const ui = useUiStore()
+const notifStore = useNotificationsStore()
 const router = useRouter()
 
 const menuOpen = ref(false)
@@ -119,11 +121,15 @@ function signOut() {
         <router-link
           v-if="tab.path"
           :to="tab.path"
-          class="flex flex-col items-center justify-center w-14 h-14 text-gray-500 dark:text-gray-400 transition-colors"
+          class="relative flex flex-col items-center justify-center w-14 h-14 text-gray-500 dark:text-gray-400 transition-colors"
           active-class="text-indigo-600 dark:text-indigo-400"
           :aria-label="t(`nav.${tab.key}`)"
         >
           <span class="text-xl" aria-hidden="true">{{ tab.icon }}</span>
+          <span
+            v-if="tab.key === 'notifications' && notifStore.unreadCount > 0"
+            class="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold min-w-[16px] h-4 flex items-center justify-center px-1 rounded-full"
+          >{{ notifStore.unreadCount > 99 ? '99+' : notifStore.unreadCount }}</span>
         </router-link>
         <button
           v-else

@@ -8,6 +8,27 @@
 import type { Env } from '../env';
 import type { TimelineFanoutMessage } from '../shared/types/queue';
 
+/** Extract :shortcode: patterns from HTML content and fetch emoji info from DB */
+async function fetchEmojisForContent(
+  db: D1Database,
+  content: string | null,
+): Promise<Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>> {
+  if (!content) return [];
+  const matches = [...content.matchAll(/:([a-zA-Z0-9_]{2,}?):/g)];
+  if (matches.length === 0) return [];
+  const shortcodes = [...new Set(matches.map((m) => m[1]))];
+  const placeholders = shortcodes.map(() => '?').join(',');
+  const { results } = await db.prepare(
+    `SELECT shortcode, image_key, domain FROM custom_emojis WHERE shortcode IN (${placeholders})`,
+  ).bind(...shortcodes).all();
+  return (results ?? []).map((r: any) => ({
+    shortcode: r.shortcode as string,
+    url: (r.image_key as string).startsWith('http') ? r.image_key : `https://${r.domain}/emoji/${r.image_key}`,
+    static_url: (r.image_key as string).startsWith('http') ? r.image_key : `https://${r.domain}/emoji/${r.image_key}`,
+    visible_in_picker: false,
+  }));
+}
+
 export async function handleTimelineFanout(
   msg: TimelineFanoutMessage,
   env: Env,
@@ -91,6 +112,9 @@ export async function handleTimelineFanout(
         .first();
 
       if (statusRow) {
+        // Fetch custom emojis referenced in content
+        const statusEmojis = await fetchEmojisForContent(env.DB, statusRow.content as string | null);
+
         let statusPayload = JSON.stringify({
           id: statusRow.id,
           uri: statusRow.uri,
@@ -110,7 +134,7 @@ export async function handleTimelineFanout(
           media_attachments: [],
           mentions: [],
           tags: [],
-          emojis: [],
+          emojis: statusEmojis,
           reblog: null as any,
           poll: null,
           card: null,
@@ -234,6 +258,7 @@ export async function handleTimelineFanout(
   ).bind(statusId).first();
 
   if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
+    const pubEmojis = await fetchEmojisForContent(env.DB, publicStatusRow.content as string | null);
     let pubPayload = JSON.stringify({
       id: publicStatusRow.id, uri: publicStatusRow.uri, created_at: publicStatusRow.created_at,
       content: publicStatusRow.content, visibility: publicStatusRow.visibility,
@@ -244,7 +269,7 @@ export async function handleTimelineFanout(
       reblogs_count: publicStatusRow.reblogs_count || 0,
       favourites_count: publicStatusRow.favourites_count || 0,
       replies_count: publicStatusRow.replies_count || 0, edited_at: publicStatusRow.edited_at,
-      media_attachments: [], mentions: [], tags: [], emojis: [],
+      media_attachments: [], mentions: [], tags: [], emojis: pubEmojis,
       reblog: null as any, poll: null, card: null, application: null, text: null, filtered: [],
       account: {
         id: publicStatusRow.account_id, username: publicStatusRow.username,

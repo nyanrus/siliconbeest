@@ -240,22 +240,47 @@ export async function processCreate(
 
 	// Process custom emojis from tags — store remote emojis for rendering
 	const emojiTags = tags.filter((t) => t.type === 'Emoji');
+	const newEmojis: Array<{ shortcode: string; url: string; static_url: string; domain: string }> = [];
 	for (const et of emojiTags) {
 		const emojiName = ((et.name as string) || '').replace(/^:|:$/g, '');
-		const iconObj = (et as any).icon as { url?: string } | undefined;
+		const iconObj = (et as any).icon as { url?: string; mediaType?: string } | undefined;
 		const emojiUrl = iconObj?.url;
 		if (!emojiName || !emojiUrl) continue;
 		let emojiDomain: string | null = null;
 		try { emojiDomain = new URL(emojiUrl).hostname; } catch { /* skip */ }
 		if (!emojiDomain) continue;
 		try {
-			await env.DB.prepare(
+			const result = await env.DB.prepare(
 				`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
 				 VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
 				 ON CONFLICT(shortcode, domain) DO UPDATE SET image_key = excluded.image_key, updated_at = excluded.updated_at`,
 			).bind(generateUlid(), emojiName, emojiDomain, emojiUrl, now).run();
+			if (result.meta.changes > 0) {
+				newEmojis.push({ shortcode: emojiName, url: emojiUrl, static_url: emojiUrl, domain: emojiDomain });
+			}
 		} catch {
 			// ignore
+		}
+	}
+
+	// Notify connected clients about new emojis via streaming
+	if (newEmojis.length > 0) {
+		try {
+			const emojiPayload = JSON.stringify(newEmojis);
+			// Broadcast to public stream so all clients can update their emoji cache
+			const doId = env.STREAMING_DO.idFromName('__public__');
+			const doStub = env.STREAMING_DO.get(doId);
+			await doStub.fetch('https://streaming/event', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					event: 'emoji_update',
+					payload: emojiPayload,
+					stream: ['public', 'public:local', 'user'],
+				}),
+			});
+		} catch {
+			// Streaming failure shouldn't block inbox processing
 		}
 	}
 

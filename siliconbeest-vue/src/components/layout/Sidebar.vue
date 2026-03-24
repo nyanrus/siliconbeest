@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
+import { useNotificationsStore } from '@/stores/notifications'
 import { SUPPORTED_LOCALES, loadLocale } from '@/i18n'
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch } from '@/api/client'
@@ -12,6 +13,7 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const ui = useUiStore()
+const notifStore = useNotificationsStore()
 const showLangMenu = ref(false)
 
 const navItems = [
@@ -72,6 +74,10 @@ async function switchLocale(code: string) {
         >
           <span class="text-xl w-7 text-center" aria-hidden="true">{{ item.icon }}</span>
           <span>{{ t(`nav.${item.key}`) }}</span>
+          <span
+            v-if="item.key === 'notifications' && notifStore.unreadCount > 0"
+            class="ml-auto bg-red-500 text-white text-xs font-bold min-w-[20px] h-5 flex items-center justify-center px-1.5 rounded-full"
+          >{{ notifStore.unreadCount > 99 ? '99+' : notifStore.unreadCount }}</span>
         </router-link>
       </li>
     </ul>

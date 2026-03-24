@@ -282,6 +282,7 @@ All scripts read resource names from [`scripts/config.sh`](scripts/config.sh). C
 | `./scripts/delete-account.sh` | AP-compliant account deletion (sends Delete to all peers) |
 | `./scripts/generate-vapid-keys.sh` | Generate/rotate VAPID key pair |
 | `./scripts/configure-domain.sh` | Set up Workers Routes for a custom domain |
+| `./scripts/sync-config.sh` | Sync Cloudflare resource IDs → wrangler.jsonc (new machine/recovery) |
 
 See the full [scripts documentation](scripts/README.md) for all options and flags.
 

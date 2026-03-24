@@ -6,7 +6,7 @@ import {
   clearNotifications as apiClearNotifications,
   dismissNotification as apiDismissNotification,
 } from '@/api/mastodon/notifications';
-import { parseLinkHeader } from '@/api/client';
+import { parseLinkHeader, apiFetch } from '@/api/client';
 import { StreamingClient } from '@/api/streaming';
 import { useStatusesStore } from './statuses';
 import { useAccountsStore } from './accounts';
@@ -103,10 +103,29 @@ export const useNotificationsStore = defineStore('notifications', () => {
     items.value = items.value.filter((n) => n.id !== id);
   }
 
-  function markAllRead() {
+  async function markAllRead(token?: string) {
     if (items.value.length > 0) {
       lastReadId.value = items.value[0]!.id;
+      // Save marker to server
+      if (token && lastReadId.value) {
+        try {
+          await apiFetch('/v1/markers', {
+            method: 'POST',
+            token,
+            body: { notifications: { last_read_id: lastReadId.value } },
+          });
+        } catch { /* ignore */ }
+      }
     }
+  }
+
+  async function loadMarker(token: string) {
+    try {
+      const { data } = await apiFetch<Record<string, any>>('/v1/markers?timeline[]=notifications', { token });
+      if (data?.notifications?.last_read_id) {
+        lastReadId.value = data.notifications.last_read_id;
+      }
+    } catch { /* ignore */ }
   }
 
   function prepend(notification: Notification) {
@@ -147,6 +166,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     clearAll,
     dismiss,
     markAllRead,
+    loadMarker,
     prepend,
     connectStream,
     disconnectStream,

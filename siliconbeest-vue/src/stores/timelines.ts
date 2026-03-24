@@ -38,6 +38,8 @@ export const useTimelinesStore = defineStore('timelines', () => {
   const timelines = ref<Map<string, TimelineState>>(new Map());
   // Multiple streaming connections — one per stream type
   const streamingClients = ref<Map<string, StreamingClient>>(new Map());
+  // Cache for newly discovered remote custom emojis
+  const emojiCache = ref<Map<string, { shortcode: string; url: string; static_url: string }> | null>(null);
 
   function getTimelineKey(type: TimelineType, tag?: string): string {
     return type === 'tag' ? `tag:${tag}` : type;
@@ -209,6 +211,14 @@ export const useTimelinesStore = defineStore('timelines', () => {
         if (status.reblog) {
           accountStore.cacheAccount(status.reblog.account);
         }
+      },
+      onEmojiUpdate(emojis) {
+        // Cache new emojis and re-render affected statuses
+        if (!emojiCache.value) emojiCache.value = new Map();
+        for (const emoji of emojis) {
+          emojiCache.value.set(emoji.shortcode, emoji);
+        }
+        console.log(`[streaming] ${emojis.length} new emojis cached:`, emojis.map(e => `:${e.shortcode}:`).join(', '));
       },
     });
 

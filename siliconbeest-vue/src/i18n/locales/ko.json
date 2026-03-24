@@ -89,7 +89,10 @@
     "replying_to": "{name}에게 답글",
     "submit": "게시",
     "title": "새 게시물",
-    "toggle_cw": "내용 경고 전환"
+    "toggle_cw": "내용 경고 전환",
+    "emoji_picker": "이모지",
+    "search_emoji": "이모지 검색...",
+    "no_custom_emoji": "커스텀 이모지 없음"
   },
   "nav": {
     "home": "홈",

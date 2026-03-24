@@ -24,7 +24,7 @@ const followRequestCount = ref(0)
 async function loadNotifications() {
   if (!auth.token) return
   await notificationsStore.fetch(auth.token)
-  notificationsStore.markAllRead()
+  notificationsStore.markAllRead(auth.token!)
 
   // Check follow requests
   try {

@@ -89,7 +89,10 @@
     "replying_to": "Replying to {name}",
     "submit": "Publish",
     "title": "New post",
-    "toggle_cw": "Toggle content warning"
+    "toggle_cw": "Toggle content warning",
+    "emoji_picker": "Emoji",
+    "search_emoji": "Search emoji...",
+    "no_custom_emoji": "No custom emojis"
   },
   "nav": {
     "home": "Home",

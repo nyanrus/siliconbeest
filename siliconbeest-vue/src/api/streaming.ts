@@ -8,12 +8,20 @@
 
 import type { Status, Notification } from '@/types/mastodon';
 
+export interface EmojiInfo {
+  shortcode: string;
+  url: string;
+  static_url: string;
+  domain: string;
+}
+
 export type StreamEventType =
   | 'update'
   | 'notification'
   | 'delete'
   | 'status.update'
-  | 'filters_changed';
+  | 'filters_changed'
+  | 'emoji_update';
 
 export interface StreamEvent {
   event: StreamEventType;
@@ -27,6 +35,7 @@ export interface StreamCallbacks {
   onDelete?: (statusId: string) => void;
   onStatusUpdate?: (status: Status) => void;
   onFiltersChanged?: () => void;
+  onEmojiUpdate?: (emojis: EmojiInfo[]) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
 }
@@ -156,6 +165,15 @@ export class StreamingClient {
       }
       case 'filters_changed': {
         this.callbacks.onFiltersChanged?.();
+        break;
+      }
+      case 'emoji_update': {
+        if (this.callbacks.onEmojiUpdate) {
+          try {
+            const emojis = JSON.parse(data.payload) as EmojiInfo[];
+            this.callbacks.onEmojiUpdate(emojis);
+          } catch { /* ignore */ }
+        }
         break;
       }
     }
