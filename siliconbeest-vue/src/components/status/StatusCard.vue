@@ -151,11 +151,26 @@ async function handleShare() {
   }
 }
 
+function stripHtml(html: string): string {
+  // Convert <br> and </p><p> to newlines, then strip remaining tags
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim()
+}
+
 function handleEdit() {
+  const s = displayStatus.value
   // Use text field if available, otherwise strip HTML from content
-  editText.value = props.status.text || ''
-  editSpoilerText.value = props.status.spoiler_text || ''
-  editSensitive.value = props.status.sensitive || false
+  editText.value = s.text || stripHtml(s.content || '')
+  editSpoilerText.value = s.spoiler_text || ''
+  editSensitive.value = s.sensitive || false
   isEditing.value = true
 }
 
@@ -286,6 +301,20 @@ async function handleDelete() {
             :placeholder="t('compose.cw_placeholder')"
             class="w-full mt-1 border border-gray-300 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />
+          <!-- Existing media attachments preview -->
+          <div v-if="displayStatus.media_attachments?.length" class="flex gap-2 mt-2 flex-wrap">
+            <div
+              v-for="media in displayStatus.media_attachments"
+              :key="media.id"
+              class="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600"
+            >
+              <img
+                :src="media.preview_url || media.url"
+                :alt="media.description || ''"
+                class="w-full h-full object-cover"
+              />
+            </div>
+          </div>
           <div class="flex items-center gap-2 mt-2">
             <button
               @click="submitEdit"

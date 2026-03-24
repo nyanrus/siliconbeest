@@ -52,6 +52,36 @@ app.delete('/:id', authRequired, async (c) => {
     }
   }
 
+  // Broadcast delete event via streaming to all connected clients
+  try {
+    // Send to public streams
+    const doId = c.env.STREAMING_DO.idFromName('__public__');
+    const stub = c.env.STREAMING_DO.get(doId);
+    await stub.fetch(new Request('http://internal/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'delete',
+        payload: statusId,
+        stream: ['public', 'public:local'],
+      }),
+    }));
+
+    // Send to the author's user stream
+    const user = c.get('currentUser')!;
+    const userDoId = c.env.STREAMING_DO.idFromName(user.id);
+    const userStub = c.env.STREAMING_DO.get(userDoId);
+    await userStub.fetch(new Request('http://internal/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'delete',
+        payload: statusId,
+        stream: ['user'],
+      }),
+    }));
+  } catch { /* non-critical */ }
+
   // Return the deleted status per Mastodon spec
   return c.json({
     id: row.id as string,

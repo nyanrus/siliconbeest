@@ -155,7 +155,7 @@ export function serializeStatus(
     poll: opts.poll ?? null,
     card: opts.card ?? null,
     language: row.language || null,
-    text: null,
+    text: row.text || null,
     favourited: opts.favourited ?? false,
     reblogged: opts.reblogged ?? false,
     bookmarked: opts.bookmarked ?? false,

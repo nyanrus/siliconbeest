@@ -14,7 +14,7 @@
 	// Environment Variables (secrets set via `wrangler secret put`)
 	"vars": {
 		"INSTANCE_DOMAIN": "siliconbeest.sjang.dev",
-		"INSTANCE_TITLE": "SiliconBeest by siliconjang",
+		"INSTANCE_TITLE": "SiliconBeest by siliconsjang",
 		"REGISTRATION_MODE": "approval"
 	},
 
