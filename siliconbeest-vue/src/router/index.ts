@@ -24,6 +24,11 @@ const router = createRouter({
     {
       path: '/explore',
       name: 'explore',
+      redirect: '/explore/local',
+    },
+    {
+      path: '/explore/:tab(local|public)',
+      name: 'explore-tab',
       component: () => import('@/views/ExploreView.vue'),
     },
     {

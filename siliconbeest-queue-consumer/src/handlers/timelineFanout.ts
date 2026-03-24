@@ -210,32 +210,118 @@ export async function handleTimelineFanout(
 
         await Promise.allSettled(streamPromises);
 
-        // Also broadcast to public/local streams for public statuses
-        if (statusRow.visibility === 'public') {
-          const publicStreams = ['public'];
-          // If it's a local post, also send to public:local
-          if (!statusRow.domain) {
-            publicStreams.push('public:local');
-          }
-          // Use a well-known DO name for public streaming
-          await env.WORKER.fetch(
-            new Request('http://internal/internal/stream-event', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: '__public__',
-                event: 'update',
-                payload: statusPayload,
-                stream: publicStreams,
-              }),
-            }),
-          ).catch(() => {});
-        }
-
         console.log(
           `Sent streaming events for status ${statusId} to ${userRows.results.length} users`,
         );
       }
     }
+  }
+
+  // Broadcast to public/local streams — INDEPENDENT of follower count
+  // Fetch status data for streaming payload if not already fetched above
+  const publicStatusRow = await env.DB.prepare(
+    `SELECT s.id, s.uri, s.content, s.visibility, s.sensitive,
+            s.content_warning, s.language, s.url, s.created_at,
+            s.in_reply_to_id, s.in_reply_to_account_id, s.reblog_of_id,
+            s.reblogs_count, s.favourites_count, s.replies_count, s.edited_at,
+            a.id AS account_id, a.username, a.domain, a.display_name,
+            a.note AS account_note, a.url AS account_url, a.uri AS account_uri,
+            a.avatar_url, a.header_url, a.locked, a.bot,
+            a.followers_count, a.following_count, a.statuses_count,
+            a.created_at AS account_created_at
+     FROM statuses s JOIN accounts a ON a.id = s.account_id
+     WHERE s.id = ?`,
+  ).bind(statusId).first();
+
+  if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
+    let pubPayload = JSON.stringify({
+      id: publicStatusRow.id, uri: publicStatusRow.uri, created_at: publicStatusRow.created_at,
+      content: publicStatusRow.content, visibility: publicStatusRow.visibility,
+      sensitive: publicStatusRow.sensitive === 1 || publicStatusRow.sensitive === true,
+      spoiler_text: publicStatusRow.content_warning || '', language: publicStatusRow.language,
+      url: publicStatusRow.url, in_reply_to_id: publicStatusRow.in_reply_to_id,
+      in_reply_to_account_id: publicStatusRow.in_reply_to_account_id,
+      reblogs_count: publicStatusRow.reblogs_count || 0,
+      favourites_count: publicStatusRow.favourites_count || 0,
+      replies_count: publicStatusRow.replies_count || 0, edited_at: publicStatusRow.edited_at,
+      media_attachments: [], mentions: [], tags: [], emojis: [],
+      reblog: null as any, poll: null, card: null, application: null, text: null, filtered: [],
+      account: {
+        id: publicStatusRow.account_id, username: publicStatusRow.username,
+        acct: publicStatusRow.domain ? `${publicStatusRow.username}@${publicStatusRow.domain}` : publicStatusRow.username,
+        display_name: publicStatusRow.display_name || '',
+        locked: publicStatusRow.locked === 1, bot: publicStatusRow.bot === 1,
+        discoverable: true, group: false, created_at: publicStatusRow.account_created_at,
+        note: publicStatusRow.account_note || '',
+        url: publicStatusRow.account_url, uri: publicStatusRow.account_uri,
+        avatar: publicStatusRow.avatar_url || '', avatar_static: publicStatusRow.avatar_url || '',
+        header: publicStatusRow.header_url || '', header_static: publicStatusRow.header_url || '',
+        followers_count: publicStatusRow.followers_count || 0,
+        following_count: publicStatusRow.following_count || 0,
+        statuses_count: publicStatusRow.statuses_count || 0,
+        last_status_at: null, emojis: [], fields: [],
+      },
+    });
+
+    // Resolve reblog if applicable
+    if (publicStatusRow.reblog_of_id) {
+      const origRow = await env.DB.prepare(
+        `SELECT s.*, a.id AS account_id, a.username, a.domain, a.display_name,
+                a.note AS account_note, a.url AS account_url, a.uri AS account_uri,
+                a.avatar_url, a.header_url, a.locked, a.bot,
+                a.followers_count, a.following_count, a.statuses_count,
+                a.created_at AS account_created_at
+         FROM statuses s JOIN accounts a ON a.id = s.account_id
+         WHERE s.id = ? AND s.deleted_at IS NULL`,
+      ).bind(publicStatusRow.reblog_of_id).first();
+      if (origRow) {
+        const parsed = JSON.parse(pubPayload);
+        parsed.reblog = {
+          id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
+          content: origRow.content, visibility: origRow.visibility,
+          sensitive: origRow.sensitive === 1, spoiler_text: (origRow as any).content_warning || '',
+          language: origRow.language, url: origRow.url,
+          in_reply_to_id: origRow.in_reply_to_id, in_reply_to_account_id: origRow.in_reply_to_account_id,
+          reblogs_count: origRow.reblogs_count || 0, favourites_count: origRow.favourites_count || 0,
+          replies_count: origRow.replies_count || 0, edited_at: origRow.edited_at,
+          media_attachments: [], mentions: [], tags: [], emojis: [],
+          reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
+          account: {
+            id: origRow.account_id, username: origRow.username,
+            acct: (origRow as any).domain ? `${origRow.username}@${(origRow as any).domain}` : origRow.username,
+            display_name: (origRow as any).display_name || '', locked: origRow.locked === 1,
+            bot: origRow.bot === 1, discoverable: true, group: false,
+            created_at: (origRow as any).account_created_at, note: (origRow as any).account_note || '',
+            url: (origRow as any).account_url, uri: (origRow as any).account_uri,
+            avatar: (origRow as any).avatar_url || '', avatar_static: (origRow as any).avatar_url || '',
+            header: (origRow as any).header_url || '', header_static: (origRow as any).header_url || '',
+            followers_count: (origRow as any).followers_count || 0,
+            following_count: (origRow as any).following_count || 0,
+            statuses_count: (origRow as any).statuses_count || 0,
+            last_status_at: null, emojis: [], fields: [],
+          },
+        };
+        pubPayload = JSON.stringify(parsed);
+      }
+    }
+
+    const publicStreams = ['public'];
+    if (!publicStatusRow.domain) publicStreams.push('public:local');
+
+    console.log(`Broadcasting to public streams: ${publicStreams.join(', ')} for status ${statusId}`);
+    await env.WORKER.fetch(
+      new Request('http://internal/internal/stream-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: '__public__',
+          event: 'update',
+          payload: pubPayload,
+          stream: publicStreams,
+        }),
+      }),
+    ).catch((err) => {
+      console.error(`Failed to broadcast to public streams:`, err);
+    });
   }
 }

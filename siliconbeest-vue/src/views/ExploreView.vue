@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import type { Status } from '@/types/mastodon'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useStatusesStore } from '@/stores/statuses'
@@ -10,12 +11,17 @@ import AppShell from '@/components/layout/AppShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const timelinesStore = useTimelinesStore()
 const statusesStore = useStatusesStore()
 const auth = useAuthStore()
 
 type ExploreTab = 'local' | 'federated'
-const activeTab = ref<ExploreTab>('local')
+
+const activeTab = computed<ExploreTab>(() =>
+  (route.params.tab as string) === 'public' ? 'federated' : 'local'
+)
 
 const timelineType = computed<TimelineType>(() =>
   activeTab.value === 'federated' ? 'public' : 'local'
@@ -68,10 +74,11 @@ async function loadMore() {
 }
 
 function switchTab(tab: ExploreTab) {
-  activeTab.value = tab
+  const urlTab = tab === 'federated' ? 'public' : 'local'
+  router.push(`/explore/${urlTab}`)
 }
 
-watch(activeTab, () => {
+watch(() => route.params.tab, () => {
   loadTimeline()
 })
 
