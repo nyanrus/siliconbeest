@@ -18,7 +18,8 @@ app.get('/:tag', authOptional, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
   const conditions: string[] = [
     `t.name = ?`,

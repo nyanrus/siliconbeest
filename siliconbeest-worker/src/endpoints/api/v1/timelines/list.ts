@@ -31,7 +31,8 @@ app.get('/:listId', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  const { whereClause, orderClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.created_at ASC' : 's.created_at DESC';
 
   const conditions: string[] = ['la.list_id = ?', 's.deleted_at IS NULL'];
   const binds: (string | number)[] = [listId];
