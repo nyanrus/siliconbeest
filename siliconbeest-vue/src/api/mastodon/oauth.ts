@@ -36,13 +36,19 @@ export function getToken(params: {
 }
 
 export function revokeToken(params: {
-  client_id: string;
-  client_secret: string;
   token: string;
+  client_id?: string;
+  client_secret?: string;
 }) {
+  // Server-side revoke only needs the token — client_id/secret are optional
+  const formData = new URLSearchParams();
+  formData.set('token', params.token);
+  if (params.client_id) formData.set('client_id', params.client_id);
+  if (params.client_secret) formData.set('client_secret', params.client_secret);
   return apiFetch<Record<string, never>>('/../oauth/revoke', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: formData.toString(),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
 }
 

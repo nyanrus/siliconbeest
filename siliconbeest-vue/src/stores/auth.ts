@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { CredentialAccount, Token } from '@/types/mastodon';
 import { verifyCredentials } from '@/api/mastodon/accounts';
-import { login as apiLogin, register as apiRegister } from '@/api/mastodon/oauth';
+import { login as apiLogin, register as apiRegister, revokeToken } from '@/api/mastodon/oauth';
 import {
   getAuthenticateOptions,
   verifyAuthentication,
@@ -157,13 +157,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
-    // Disconnect all streaming connections
+  async function logout() {
+    // 1. Revoke token on server (best-effort — don't block on failure)
+    if (token.value) {
+      try {
+        await revokeToken({ token: token.value });
+      } catch {
+        // Server might be unreachable — still log out locally
+      }
+    }
+
+    // 2. Disconnect all streaming connections
     const timelinesStore = useTimelinesStore();
     const notificationsStore = useNotificationsStore();
     timelinesStore.disconnectStream();
     notificationsStore.disconnectStream();
 
+    // 3. Clear local state
     clearToken();
   }
 
