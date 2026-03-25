@@ -63,7 +63,7 @@ app.get('/', authOptional, async (c) => {
       const dk = (row.domain as string) || '__local__';
       const em = acctEmojiMaps.get(dk);
       const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
-      return serializeAccount(row as AccountRow, { emojis: acctEmojis });
+      return serializeAccount(row as AccountRow, { emojis: acctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN });
     });
 
     // WebFinger resolution: if resolve=true and query looks like user@domain
@@ -82,7 +82,7 @@ app.get('/', authOptional, async (c) => {
           // Include existing actor in results if not already present
           const existingId = existingActor.id as string;
           if (!accounts.some((a: any) => a.id === existingId)) {
-            accounts.unshift(serializeAccount(existingActor as unknown as AccountRow));
+            accounts.unshift(serializeAccount(existingActor as unknown as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));
           }
         } else {
           // Fetch remote actor and upsert
@@ -131,7 +131,7 @@ app.get('/', authOptional, async (c) => {
             ).bind(actorData.id).first();
 
             if (insertedAccount) {
-              accounts.unshift(serializeAccount(insertedAccount as unknown as AccountRow));
+              accounts.unshift(serializeAccount(insertedAccount as unknown as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));
             }
           }
         }
@@ -184,7 +184,7 @@ app.get('/', authOptional, async (c) => {
       };
       const e = enrichments.get(row.id);
       return serializeStatus(row as StatusRow, {
-        account: serializeAccount(accountRow, { emojis: e?.accountEmojis }),
+        account: serializeAccount(accountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
         mediaAttachments: e?.mediaAttachments,
         mentions: e?.mentions,
         favourited: e?.favourited,

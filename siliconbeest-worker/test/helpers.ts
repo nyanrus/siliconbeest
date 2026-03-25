@@ -97,6 +97,10 @@ export async function applyMigration() {
   await env.DB.prepare('CREATE TABLE IF NOT EXISTS webauthn_credentials ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, credential_id TEXT NOT NULL UNIQUE, public_key TEXT NOT NULL, counter INTEGER NOT NULL DEFAULT 0, device_type TEXT, backed_up INTEGER DEFAULT 0, transports TEXT, name TEXT, created_at TEXT NOT NULL, last_used_at TEXT )').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_webauthn_cred ON webauthn_credentials(credential_id)').run();
+
+  // Media proxy cache
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS media_proxy_cache ( id TEXT PRIMARY KEY, remote_url TEXT NOT NULL UNIQUE, r2_key TEXT NOT NULL, content_type TEXT NOT NULL, size INTEGER, created_at TEXT NOT NULL )').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_media_proxy_url ON media_proxy_cache(remote_url)').run();
 }
 
 export async function createTestUser(username: string, opts?: { email?: string; role?: string }) {

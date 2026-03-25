@@ -48,7 +48,7 @@ app.get('/', authRequired, async (c) => {
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) => {
-    return serializeAccount(row as AccountRow);
+    return serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
   });
 
   if (pag.minId) accounts.reverse();

@@ -122,7 +122,7 @@ app.get('/:id', authRequired, async (c) => {
         mentions: e?.mentions ?? [],
         tags: [],
         emojis: e?.emojis ?? [],
-        account: serializeAccount(statusAccountRow, { emojis: e?.accountEmojis }),
+        account: serializeAccount(statusAccountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
       };
     }
   }
@@ -141,7 +141,7 @@ app.get('/:id', authRequired, async (c) => {
   );
 
   return c.json(serializeNotification(notifRow, {
-    account: serializeAccount(accountRow, { emojis: notifAcctEmojis }),
+    account: serializeAccount(accountRow, { emojis: notifAcctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
     status: statusObj,
   }));
 });

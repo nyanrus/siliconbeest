@@ -136,6 +136,10 @@
 	  {
 	    "pattern": "siliconbeest.sjang.dev/favicon.ico",
 	    "zone_name": "sjang.dev"
+	  },
+	  {
+	    "pattern": "siliconbeest.sjang.dev/proxy*",
+	    "zone_name": "sjang.dev"
 	  }
 	]
 }

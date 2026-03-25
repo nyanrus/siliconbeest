@@ -61,7 +61,7 @@ app.get('/', authRequired, async (c) => {
       .all();
 
     const accounts = (participantRows ?? []).map((row: any) =>
-      serializeAccount(row as AccountRow),
+      serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
     );
 
     // Get last status
@@ -113,7 +113,7 @@ app.get('/', authRequired, async (c) => {
           moved_to_account_id: statusRow.a_moved_to_account_id as string | null,
         };
         lastStatus = serializeStatus(statusRow as unknown as StatusRow, {
-          account: serializeAccount(accountRow),
+          account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
         });
       }
     }

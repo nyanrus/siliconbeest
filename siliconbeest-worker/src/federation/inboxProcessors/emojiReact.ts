@@ -78,10 +78,10 @@ export async function processEmojiReact(
 			const emojiUrl = iconObj?.url as string | undefined;
 			if (!emojiName || !emojiUrl) continue;
 
+			// Use actor's server domain, not CDN hostname from emoji URL
+			const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
 			let emojiDomain: string | null = null;
-			try {
-				emojiDomain = new URL(emojiUrl).hostname;
-			} catch { /* skip */ }
+			try { emojiDomain = new URL(reactorUri).hostname; } catch { /* skip */ }
 
 			if (emojiDomain) {
 				await env.DB.prepare(

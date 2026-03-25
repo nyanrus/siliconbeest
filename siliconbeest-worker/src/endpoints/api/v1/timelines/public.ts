@@ -112,7 +112,7 @@ app.get('/', authOptional, async (c) => {
       };
       const origE = enrichments.get(rr.id as string);
       reblogMap.set(rr.id as string, serializeStatus(rr as unknown as StatusRow, {
-        account: serializeAccount(origAccountRow, { emojis: origE?.accountEmojis }),
+        account: serializeAccount(origAccountRow, { emojis: origE?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
         mediaAttachments: origE?.mediaAttachments,
         mentions: origE?.mentions,
         favourited: origE?.favourited,
@@ -139,7 +139,7 @@ app.get('/', authOptional, async (c) => {
     };
     const e = enrichments.get(row.id);
     const s = serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { emojis: e?.accountEmojis }),
+      account: serializeAccount(accountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,
       favourited: e?.favourited,

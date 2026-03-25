@@ -79,6 +79,9 @@ import filters from './endpoints/api/v1/filters/index';
 // -- Media serving --
 import mediaServe from './endpoints/media';
 
+// -- Media proxy (remote Fediverse media cache) --
+import proxyEndpoint from './endpoints/proxy';
+
 // -- ActivityPub --
 import apActor from './endpoints/activitypub/actor';
 import apInstanceActor from './endpoints/activitypub/instanceActor';
@@ -238,6 +241,12 @@ app.route('/inbox', apSharedInbox);
 // ---------------------------------------------------------------------------
 
 app.route('/media', mediaServe);
+
+// ---------------------------------------------------------------------------
+// Media proxy (remote Fediverse media cache)
+// ---------------------------------------------------------------------------
+
+app.route('/proxy', proxyEndpoint);
 
 // ---------------------------------------------------------------------------
 // Thumbnail / favicon

@@ -97,8 +97,9 @@ export default {
 		return new Response('siliconbeest-email-sender: queue consumer only', { status: 200 });
 	},
 
-	async queue(batch: MessageBatch<EmailMessage>, env: Env): Promise<void> {
+	async queue(batch: MessageBatch, env: Env): Promise<void> {
 		for (const msg of batch.messages) {
+			const body = msg.body as EmailMessage;
 			try {
 				const config = await getEmailConfig(env);
 				if (!config || !config.host) {
@@ -125,17 +126,17 @@ export default {
 					},
 					{
 						from: { name: 'SiliconBeest', email: config.from },
-						to: msg.body.to,
-						subject: msg.body.subject,
-						html: msg.body.html,
-						text: msg.body.text,
+						to: body.to,
+						subject: body.subject,
+						html: body.html,
+						text: body.text,
 					},
 				);
 
-				console.log(`[email-sender] Sent to ${msg.body.to}: ${msg.body.subject}`);
+				console.log(`[email-sender] Sent to ${body.to}: ${body.subject}`);
 				msg.ack();
 			} catch (e) {
-				console.error(`[email-sender] Failed to send to ${msg.body.to}:`, e);
+				console.error(`[email-sender] Failed to send to ${body.to}:`, e);
 				msg.retry();
 			}
 		}

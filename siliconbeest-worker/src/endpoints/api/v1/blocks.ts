@@ -41,7 +41,7 @@ app.get('/', authRequired, async (c) => {
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
 
   const accounts = (results ?? []).map((row: any) => {
-    const acc = serializeAccount(row as AccountRow);
+    const acc = serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN });
     // Use block row ID for pagination
     return { ...acc, id: row.bl_id, _account_id: row.id };
   });
@@ -77,7 +77,7 @@ app.get('/', authRequired, async (c) => {
     const dk = (row.domain as string) || '__local__';
     const em = emojiMaps.get(dk);
     const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
-    return serializeAccount(row as AccountRow, { emojis: acctEmojis });
+    return serializeAccount(row as AccountRow, { emojis: acctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN });
   });
   if (pag.minId) serialized.reverse();
 

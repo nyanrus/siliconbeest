@@ -49,6 +49,21 @@ app.get('/:id', async (c) => {
   const defaultAvatar = `https://${domain}/default-avatar.svg`;
   const defaultHeader = `https://${domain}/default-header.svg`;
 
+  // Proxy remote avatar/header URLs through our media proxy
+  const proxyRemote = (url: string): string => {
+    if (!url || !acctDomain) return url;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === domain) return url;
+      return `https://${domain}/proxy?url=${encodeURIComponent(url)}`;
+    } catch { return url; }
+  };
+
+  const rawAvatar = avatarUrl || defaultAvatar;
+  const rawAvatarStatic = (row.avatar_static_url as string) || avatarUrl || defaultAvatar;
+  const rawHeader = headerUrl || defaultHeader;
+  const rawHeaderStatic = (row.header_static_url as string) || headerUrl || defaultHeader;
+
   return c.json({
     id: row.id as string,
     username: row.username as string,
@@ -62,10 +77,10 @@ app.get('/:id', async (c) => {
     note,
     url: (row.url as string) || `https://${domain}/@${row.username}`,
     uri: row.uri as string,
-    avatar: avatarUrl || defaultAvatar,
-    avatar_static: (row.avatar_static_url as string) || avatarUrl || defaultAvatar,
-    header: headerUrl || defaultHeader,
-    header_static: (row.header_static_url as string) || headerUrl || defaultHeader,
+    avatar: acctDomain ? proxyRemote(rawAvatar) : rawAvatar,
+    avatar_static: acctDomain ? proxyRemote(rawAvatarStatic) : rawAvatarStatic,
+    header: acctDomain ? proxyRemote(rawHeader) : rawHeader,
+    header_static: acctDomain ? proxyRemote(rawHeaderStatic) : rawHeaderStatic,
     followers_count: (row.followers_count as number) || 0,
     following_count: (row.following_count as number) || 0,
     statuses_count: (row.statuses_count as number) || 0,

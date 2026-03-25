@@ -308,7 +308,7 @@ export async function enrichStatuses(
         seen.add(code);
         const domainMap = emojiByShortcodeDomain.get(code);
         if (!domainMap) continue;
-        // Strict domain matching: same domain as account only
+        // Strict domain matching only — shortcode must match account's server domain
         const info = domainMap.get(accountDomain);
         if (info) {
           entry.emojis.push(info);

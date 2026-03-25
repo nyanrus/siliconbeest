@@ -184,7 +184,7 @@ app.get('/:id/accounts', authRequired, async (c) => {
     .bind(listId)
     .all();
 
-  const accounts = (results ?? []).map((row: any) => serializeAccount(row as AccountRow));
+  const accounts = (results ?? []).map((row: any) => serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));
 
   return c.json(accounts);
 });

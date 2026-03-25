@@ -72,7 +72,7 @@ app.get('/', authRequired, async (c) => {
     const dk = (row.domain as string) || '__local__';
     const em = emojiMaps.get(dk);
     const acctEmojis = em ? getAccountEmojis(em, (row.display_name as string) || '', (row.note as string) || '') : [];
-    return serializeAccount(row as AccountRow, { emojis: acctEmojis });
+    return serializeAccount(row as AccountRow, { emojis: acctEmojis, instanceDomain: c.env.INSTANCE_DOMAIN });
   });
   if (pag.minId) serialized.reverse();
 

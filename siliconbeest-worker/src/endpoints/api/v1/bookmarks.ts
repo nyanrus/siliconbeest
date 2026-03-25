@@ -67,7 +67,7 @@ app.get('/', authRequired, async (c) => {
     };
     const e = enrichments.get(row.id);
     const status = serializeStatus(row as StatusRow, {
-      account: serializeAccount(accountRow, { emojis: e?.accountEmojis }),
+      account: serializeAccount(accountRow, { emojis: e?.accountEmojis, instanceDomain: c.env.INSTANCE_DOMAIN }),
       bookmarked: true,
       mediaAttachments: e?.mediaAttachments,
       mentions: e?.mentions,

@@ -82,17 +82,42 @@ export function ensureISO8601WithMs(dateStr: string): string {
   }
 }
 
+/**
+ * If the URL points to an external origin (not our instance domain),
+ * wrap it through the media proxy: /proxy?url=...
+ */
+function proxyUrl(url: string | null | undefined, instanceDomain: string | undefined): string | null {
+  if (!url || !instanceDomain) return url ?? null;
+  try {
+    const parsed = new URL(url);
+    // Don't proxy our own media
+    if (parsed.hostname === instanceDomain) return url;
+    // Don't proxy data: URIs or non-http
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return url;
+    return `https://${instanceDomain}/proxy?url=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Account
 // ---------------------------------------------------------------------------
 
 export function serializeAccount(
   row: AccountRow,
-  opts?: { source?: Source; fields?: Field[]; emojis?: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> },
+  opts?: { source?: Source; fields?: Field[]; emojis?: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }>; instanceDomain?: string },
 ): MastodonAccount {
   const isLocal = row.domain === null || row.domain === '';
   const acct = isLocal ? row.username : `${row.username}@${row.domain}`;
   const url = row.url ?? row.uri;
+
+  const rawAvatar = row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`;
+  const rawAvatarStatic = row.avatar_static_url || row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`;
+  const rawHeader = row.header_url || `${new URL(row.uri).origin}/default-header.svg`;
+  const rawHeaderStatic = row.header_static_url || row.header_url || `${new URL(row.uri).origin}/default-header.svg`;
+
+  const domain = opts?.instanceDomain;
 
   const account: MastodonAccount = {
     id: row.id,
@@ -102,10 +127,10 @@ export function serializeAccount(
     note: row.note || '',
     url,
     uri: row.uri,
-    avatar: row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`,
-    avatar_static: row.avatar_static_url || row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`,
-    header: row.header_url || `${new URL(row.uri).origin}/default-header.svg`,
-    header_static: row.header_static_url || row.header_url || `${new URL(row.uri).origin}/default-header.svg`,
+    avatar: (isLocal ? rawAvatar : proxyUrl(rawAvatar, domain)) || rawAvatar,
+    avatar_static: (isLocal ? rawAvatarStatic : proxyUrl(rawAvatarStatic, domain)) || rawAvatarStatic,
+    header: (isLocal ? rawHeader : proxyUrl(rawHeader, domain)) || rawHeader,
+    header_static: (isLocal ? rawHeaderStatic : proxyUrl(rawHeaderStatic, domain)) || rawHeaderStatic,
     locked: bool(row.locked),
     bot: bool(row.bot),
     discoverable: bool(row.discoverable),
@@ -206,10 +231,16 @@ export function serializeMediaAttachment(
   const baseUrl = domain ? `https://${domain}/media/` : '';
   // For remote media, file_key is the full remote URL; for local, it's a relative R2 key
   const isRemoteUrl = row.file_key?.startsWith('http://') || row.file_key?.startsWith('https://');
-  const mediaUrl = isRemoteUrl ? row.file_key : `${baseUrl}${row.file_key}`;
-  const previewUrl = row.thumbnail_key
+  const rawMediaUrl = isRemoteUrl ? row.file_key : `${baseUrl}${row.file_key}`;
+  const rawPreviewUrl = row.thumbnail_key
     ? (row.thumbnail_key.startsWith('http') ? row.thumbnail_key : `${baseUrl}${row.thumbnail_key}`)
-    : mediaUrl;
+    : rawMediaUrl;
+
+  // Proxy remote media URLs through our proxy endpoint
+  const mediaUrl = isRemoteUrl ? (proxyUrl(rawMediaUrl, domain) || rawMediaUrl) : rawMediaUrl;
+  const previewUrl = isRemoteUrl || row.thumbnail_key?.startsWith('http')
+    ? (proxyUrl(rawPreviewUrl, domain) || rawPreviewUrl)
+    : rawPreviewUrl;
 
   return {
     id: row.id,

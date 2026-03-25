@@ -39,7 +39,7 @@ app.get('/', authRequired, async (c) => {
 
   const suggestions = (results ?? []).map((row: any) => ({
     source: 'staff' as const,
-    account: serializeAccount(row as AccountRow),
+    account: serializeAccount(row as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
   }));
 
   return c.json(suggestions);
