@@ -17,12 +17,12 @@ app.get('/', authRequired, async (c) => {
     limit: c.req.query('limit'),
   });
 
-  // Order by datetime(hte.created_at) to handle mixed date formats:
-  // - Local entries use ISO 8601 with T and Z: "2026-03-24T07:17:25.231Z"
-  // - Remote entries from queue consumer use space-separated: "2026-03-24 07:19:36"
-  // SQLite's datetime() normalizes both to "YYYY-MM-DD HH:MM:SS" for correct comparison.
-  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 'hte.status_id');
-  const orderClause = pag.minId ? 'datetime(hte.created_at) ASC' : 'datetime(hte.created_at) DESC';
+  // Use status_id for both ordering AND cursor pagination to ensure consistency.
+  // Both must use the same column, otherwise scrolling loads duplicate results.
+  // While local (00MN...) and remote (01KM...) ULIDs have different prefixes,
+  // within each pagination page the ordering is consistent enough for cursor-based pagination.
+  const { whereClause, limitValue, params } = buildPaginationQuery(pag, 's.id');
+  const orderClause = pag.minId ? 's.id ASC' : 's.id DESC';
 
   const conditions = [`hte.account_id = ?`];
   const binds: (string | number)[] = [account.id];
