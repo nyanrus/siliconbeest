@@ -39,10 +39,13 @@ else
   KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
   QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
   QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
+  QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
   QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
+  EMAIL_SENDER_NAME="${EMAIL_SENDER_NAME:-${PROJECT_PREFIX}-email-sender}"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
   WORKER_DIR="$PROJECT_ROOT/siliconbeest-worker"
   CONSUMER_DIR="$PROJECT_ROOT/siliconbeest-queue-consumer"
+  EMAIL_DIR="$PROJECT_ROOT/siliconbeest-email-sender"
   VUE_DIR="$PROJECT_ROOT/siliconbeest-vue"
   RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
   BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -176,6 +179,7 @@ echo "  KV CACHE:       ${KV_CACHE_ID:-NOT FOUND}"
 echo "  KV SESSIONS:    ${KV_SESSIONS_ID:-NOT FOUND}"
 echo "  Queue Fed:      ${QUEUE_FEDERATION}"
 echo "  Queue Internal: ${QUEUE_INTERNAL}"
+echo "  Queue Email:    ${QUEUE_EMAIL}"
 echo "  Queue DLQ:      ${QUEUE_DLQ}"
 echo "  Domain:         ${CURRENT_DOMAIN}"
 echo "  Title:          ${CURRENT_TITLE}"
@@ -193,6 +197,7 @@ if ! $APPLY; then
   info "Files that would be updated:"
   echo "  $WORKER_DIR/wrangler.jsonc"
   echo "  $CONSUMER_DIR/wrangler.jsonc"
+  echo "  $EMAIL_DIR/wrangler.jsonc"
   echo "  $VUE_DIR/wrangler.jsonc"
   exit 0
 fi
@@ -265,6 +270,10 @@ cat > "$WORKER_DIR/wrangler.jsonc" << WRANGLER_EOF
 			{
 				"binding": "QUEUE_INTERNAL",
 				"queue": "${QUEUE_INTERNAL}"
+			},
+			{
+				"binding": "QUEUE_EMAIL",
+				"queue": "${QUEUE_EMAIL}"
 			}
 		]
 	},
@@ -374,6 +383,41 @@ cat > "$CONSUMER_DIR/wrangler.jsonc" << WRANGLER_EOF
 WRANGLER_EOF
 success "Queue consumer config written"
 
+# --- Email Sender wrangler.jsonc ---
+info "Writing $EMAIL_DIR/wrangler.jsonc"
+cat > "$EMAIL_DIR/wrangler.jsonc" << WRANGLER_EOF
+{
+	"\$schema": "node_modules/wrangler/config-schema.json",
+	"name": "${EMAIL_SENDER_NAME}",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-17",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+
+	// Consumes from dedicated email queue
+	"queues": {
+		"consumers": [
+			{
+				"queue": "${QUEUE_EMAIL}",
+				"max_retries": 3
+			}
+		]
+	},
+
+	// D1 for reading SMTP settings from settings table
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "${D1_DATABASE_NAME}",
+			"database_id": "${D1_ID}"
+		}
+	]
+}
+WRANGLER_EOF
+success "Email sender config written"
+
 # --- Vue wrangler.jsonc ---
 info "Writing $VUE_DIR/wrangler.jsonc"
 cat > "$VUE_DIR/wrangler.jsonc" << WRANGLER_EOF
@@ -403,9 +447,10 @@ success "Vue frontend config written"
 header "Sync Complete"
 
 echo "  Updated files:"
-echo "    ✅ $WORKER_DIR/wrangler.jsonc"
-echo "    ✅ $CONSUMER_DIR/wrangler.jsonc"
-echo "    ✅ $VUE_DIR/wrangler.jsonc"
+echo "    $WORKER_DIR/wrangler.jsonc"
+echo "    $CONSUMER_DIR/wrangler.jsonc"
+echo "    $EMAIL_DIR/wrangler.jsonc"
+echo "    $VUE_DIR/wrangler.jsonc"
 echo ""
 echo "  Next steps:"
 echo "    1. Review the generated files"

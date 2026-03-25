@@ -38,7 +38,7 @@ app.post('/', async (c) => {
 			.run();
 
 		// Send email (best-effort — failures are logged but do not break the response)
-		await sendPasswordReset(c.env, c.env.DB, email, token);
+		await sendPasswordReset(c.env, email, token);
 	}
 
 	// Always return 200 to prevent email enumeration

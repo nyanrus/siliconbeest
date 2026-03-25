@@ -21,6 +21,7 @@ PROJECT_PREFIX="${PROJECT_PREFIX:-siliconbeest}"
 # ---------------------------------------------------------------------------
 WORKER_NAME="${WORKER_NAME:-${PROJECT_PREFIX}-worker}"
 CONSUMER_NAME="${CONSUMER_NAME:-${PROJECT_PREFIX}-queue-consumer}"
+EMAIL_SENDER_NAME="${EMAIL_SENDER_NAME:-${PROJECT_PREFIX}-email-sender}"
 VUE_NAME="${VUE_NAME:-${PROJECT_PREFIX}-vue}"
 
 # ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ KV_CACHE_TITLE="${KV_CACHE_TITLE:-${PROJECT_PREFIX}-CACHE}"
 KV_SESSIONS_TITLE="${KV_SESSIONS_TITLE:-${PROJECT_PREFIX}-SESSIONS}"
 QUEUE_FEDERATION="${QUEUE_FEDERATION:-${PROJECT_PREFIX}-federation}"
 QUEUE_INTERNAL="${QUEUE_INTERNAL:-${PROJECT_PREFIX}-internal}"
+QUEUE_EMAIL="${QUEUE_EMAIL:-${PROJECT_PREFIX}-email}"
 QUEUE_DLQ="${QUEUE_DLQ:-${PROJECT_PREFIX}-federation-dlq}"
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,7 @@ SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$SCRIPT_DIR")}"
 WORKER_DIR="${WORKER_DIR:-$PROJECT_ROOT/siliconbeest-worker}"
 CONSUMER_DIR="${CONSUMER_DIR:-$PROJECT_ROOT/siliconbeest-queue-consumer}"
+EMAIL_DIR="${EMAIL_DIR:-$PROJECT_ROOT/siliconbeest-email-sender}"
 VUE_DIR="${VUE_DIR:-$PROJECT_ROOT/siliconbeest-vue}"
 
 # ---------------------------------------------------------------------------

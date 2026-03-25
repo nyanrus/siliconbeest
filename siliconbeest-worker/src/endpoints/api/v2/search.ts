@@ -27,7 +27,9 @@ app.get('/', authOptional, async (c) => {
   let statuses: any[] = [];
   let hashtags: any[] = [];
 
-  const searchTerm = `%${q}%`;
+  // Strip leading @ for account username search (DB stores "admin" not "@admin")
+  const normalizedQ = q.replace(/^@/, '');
+  const searchTerm = `%${normalizedQ}%`;
 
   // Search accounts
   if (!type || type === 'accounts') {

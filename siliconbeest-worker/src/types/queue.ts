@@ -133,6 +133,18 @@ export interface ImportItemMessage {
   accountId: string;
 }
 
+export interface SendEmailMessage {
+  type: 'send_email';
+  /** Recipient email address */
+  to: string;
+  /** Email subject line */
+  subject: string;
+  /** HTML body content */
+  html: string;
+  /** Plain-text body content (optional) */
+  text?: string;
+}
+
 // ============================================================
 // DISCRIMINATED UNION
 // ============================================================
@@ -152,4 +164,5 @@ export type QueueMessage =
   | UpdateTrendsMessage
   | FetchPreviewCardMessage
   | ForwardActivityMessage
-  | ImportItemMessage;
+  | ImportItemMessage
+  | SendEmailMessage;

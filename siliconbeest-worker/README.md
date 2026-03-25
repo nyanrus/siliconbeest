@@ -12,7 +12,7 @@ The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudfl
 - Provides an admin API for instance management and moderation.
 - Exposes WebSocket streaming through a Durable Object.
 - Enqueues async jobs (federation delivery, notifications, media processing, preview cards) to Cloudflare Queues.
-- Sends email via worker-mailer (password reset, notifications).
+- Enqueues email jobs (password reset, notifications) to the `QUEUE_EMAIL` queue, consumed by the dedicated [email-sender worker](../siliconbeest-email-sender/).
 
 ---
 
@@ -26,6 +26,7 @@ The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudfl
 | `SESSIONS`         | KV              | OAuth session storage                    |
 | `QUEUE_FEDERATION` | Queues          | Federation activity delivery jobs        |
 | `QUEUE_INTERNAL`   | Queues          | Internal jobs (notifications, fanout)    |
+| `QUEUE_EMAIL`      | Queues          | Email jobs (consumed by email-sender worker) |
 | `STREAMING_DO`     | Durable Objects | WebSocket streaming connections          |
 
 ---

@@ -17,6 +17,8 @@ Asynchronous job processor for SiliconBeest. This Cloudflare Worker consumes mes
 - Fetches OpenGraph metadata for URL preview cards.
 - Sends Web Push notifications to subscribed client endpoints.
 
+> **Note:** Email sending is handled by a separate dedicated worker ([siliconbeest-email-sender](../siliconbeest-email-sender/)), which consumes from its own `email` queue. This consumer does NOT process email messages.
+
 ---
 
 ## Message Types

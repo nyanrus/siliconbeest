@@ -3,8 +3,8 @@ set -e
 
 # =============================================================================
 # SiliconBeest — Update Script
-# Pulls latest code, installs dependencies, applies migrations, and redeploys.
-# Designed for production update workflow.
+# Pulls latest code, installs dependencies, applies migrations, and redeploys
+# all 4 workers. Designed for production update workflow.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -125,7 +125,7 @@ fi
 # ---------------------------------------------------------------------------
 header "Step 2: Installing Dependencies"
 
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$VUE_DIR"; do
+for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
@@ -211,6 +211,7 @@ if [[ "$DRY_RUN" == true ]]; then
   info "[DRY RUN] Would deploy the following:"
   echo "  - $WORKER_NAME"
   echo "  - $CONSUMER_NAME"
+  echo "  - $EMAIL_SENDER_NAME"
   echo "  - $VUE_NAME"
   echo
   info "Run without --dry-run to actually deploy."
@@ -222,6 +223,10 @@ else
   info "Deploying $CONSUMER_NAME..."
   (cd "$CONSUMER_DIR" && wrangler deploy)
   success "$CONSUMER_NAME deployed"
+
+  info "Deploying $EMAIL_SENDER_NAME..."
+  (cd "$EMAIL_DIR" && wrangler deploy)
+  success "$EMAIL_SENDER_NAME deployed"
 
   info "Deploying $VUE_NAME..."
   (cd "$VUE_DIR" && wrangler deploy)

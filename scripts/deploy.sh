@@ -3,7 +3,7 @@ set -e
 
 # =============================================================================
 # SiliconBeest — Deploy Script
-# Builds and deploys all 3 workers to Cloudflare.
+# Builds and deploys all 4 workers to Cloudflare.
 # Optionally configures custom domain routes.
 # =============================================================================
 
@@ -62,7 +62,7 @@ fi
 success "Authenticated with Cloudflare"
 
 # Check that project directories exist
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$VUE_DIR"; do
+for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
   if [[ ! -d "$DIR" ]]; then
     error "Directory not found: $DIR"
     exit 1
@@ -156,7 +156,7 @@ fi
 # ---------------------------------------------------------------------------
 header "Installing Dependencies"
 
-for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$VUE_DIR"; do
+for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR" "$VUE_DIR"; do
   DIRNAME=$(basename "$DIR")
   if [[ -f "$DIR/package.json" ]]; then
     info "Installing dependencies for $DIRNAME..."
@@ -213,6 +213,19 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Deploy $EMAIL_SENDER_NAME (Email sender)
+# ---------------------------------------------------------------------------
+header "Deploying $EMAIL_SENDER_NAME"
+
+if [[ "$DRY_RUN" == true ]]; then
+  info "[DRY RUN] Would deploy $EMAIL_SENDER_NAME"
+else
+  info "Deploying email sender worker..."
+  (cd "$EMAIL_DIR" && wrangler deploy)
+  success "$EMAIL_SENDER_NAME deployed"
+fi
+
+# ---------------------------------------------------------------------------
 # Deploy $VUE_NAME (Frontend)
 # ---------------------------------------------------------------------------
 header "Deploying $VUE_NAME"
@@ -235,6 +248,7 @@ echo
 echo -e "  ${BOLD}Workers deployed:${NC}"
 echo -e "    - $WORKER_NAME       (API + ActivityPub)"
 echo -e "    - $CONSUMER_NAME (Federation queue processor)"
+echo -e "    - $EMAIL_SENDER_NAME (Email queue consumer)"
 echo -e "    - $VUE_NAME          (Frontend SPA)"
 echo
 

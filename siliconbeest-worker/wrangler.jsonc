@@ -57,6 +57,10 @@
 			{
 				"binding": "QUEUE_INTERNAL",
 				"queue": "siliconbeest-internal"
+			},
+			{
+				"binding": "QUEUE_EMAIL",
+				"queue": "siliconbeest-email"
 			}
 		]
 	},

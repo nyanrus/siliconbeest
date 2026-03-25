@@ -17,6 +17,7 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | `PROJECT_PREFIX` | `siliconbeest` | Master prefix -- changes all defaults |
 | `WORKER_NAME` | `{prefix}-worker` | API Worker name |
 | `CONSUMER_NAME` | `{prefix}-queue-consumer` | Queue Consumer name |
+| `EMAIL_SENDER_NAME` | `{prefix}-email-sender` | Email Sender Worker name |
 | `VUE_NAME` | `{prefix}-vue` | Frontend Worker name |
 | `D1_DATABASE_NAME` | `{prefix}-db` | D1 database name |
 | `R2_BUCKET_NAME` | `{prefix}-media` | R2 bucket name |
@@ -24,6 +25,7 @@ Every script sources `config.sh` which defines all resource names based on a sin
 | `KV_SESSIONS_TITLE` | `{prefix}-SESSIONS` | KV namespace for sessions |
 | `QUEUE_FEDERATION` | `{prefix}-federation` | Federation queue |
 | `QUEUE_INTERNAL` | `{prefix}-internal` | Internal queue |
+| `QUEUE_EMAIL` | `{prefix}-email` | Email queue (consumed by email-sender) |
 | `QUEUE_DLQ` | `{prefix}-federation-dlq` | Dead letter queue |
 
 ### Customizing names
@@ -95,7 +97,7 @@ What it does:
 
 ## deploy.sh
 
-Build and deploy all 3 workers. Optionally configures custom domain routes.
+Build and deploy all 4 workers. Optionally configures custom domain routes.
 
 ```bash
 # Deploy with custom domain
@@ -157,7 +159,7 @@ Steps performed:
 4. Run tests
 5. Apply D1 migrations
 6. Build frontend
-7. Deploy all workers
+7. Deploy all 4 workers
 
 If any step fails (type errors, test failures, migration errors), the script stops immediately and does not deploy.
 
@@ -342,6 +344,6 @@ Fetches resource IDs (D1, KV, R2, Queues) from your Cloudflare account and regen
 3. Looks up KV namespace IDs by title
 4. Verifies R2 bucket existence
 5. Reads existing domain/title/registration from current config
-6. Regenerates `siliconbeest-worker/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, and `siliconbeest-vue/wrangler.jsonc`
+6. Regenerates `siliconbeest-worker/wrangler.jsonc`, `siliconbeest-queue-consumer/wrangler.jsonc`, `siliconbeest-email-sender/wrangler.jsonc`, and `siliconbeest-vue/wrangler.jsonc`
 
 **Prerequisites:** `wrangler` CLI authenticated (`npx wrangler login`)

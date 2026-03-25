@@ -211,6 +211,7 @@ create_queue() {
 
 create_queue "$QUEUE_FEDERATION"
 create_queue "$QUEUE_INTERNAL"
+create_queue "$QUEUE_EMAIL"
 create_queue "$QUEUE_DLQ"
 
 # ---------------------------------------------------------------------------
@@ -231,7 +232,7 @@ update_jsonc_field() {
 # Update D1 database_id in worker wrangler.jsonc
 if [[ -n "$DB_ID" ]]; then
   info "Updating D1 database_id in wrangler.jsonc files..."
-  for DIR in "$WORKER_DIR" "$CONSUMER_DIR"; do
+  for DIR in "$WORKER_DIR" "$CONSUMER_DIR" "$EMAIL_DIR"; do
     if [[ -f "$DIR/wrangler.jsonc" ]]; then
       sed -i.bak "s|\"database_id\":.*|\"database_id\": \"$DB_ID\"|g" "$DIR/wrangler.jsonc"
       rm -f "$DIR/wrangler.jsonc.bak"

@@ -21,7 +21,7 @@ app.post('/', async (c) => {
 		throw new AppError(422, 'Validation failed: to, subject, and body are required');
 	}
 
-	const sent = await sendEmail(c.env, c.env.DB, payload.to, payload.subject, payload.body);
+	const sent = await sendEmail(c.env, payload.to, payload.subject, payload.body);
 
 	return c.json({ sent }, 200);
 });
@@ -36,7 +36,7 @@ app.post('/test', async (c) => {
 	const title = c.env.INSTANCE_TITLE || 'SiliconBeest';
 	const html = `<h1>Test Email</h1><p>This is a test email from <strong>${title}</strong>. If you received this, SMTP is configured correctly.</p>`;
 
-	const sent = await sendEmail(c.env, c.env.DB, currentUser.email, `[${title}] Test email`, html);
+	const sent = await sendEmail(c.env, currentUser.email, `[${title}] Test email`, html);
 
 	if (!sent) {
 		throw new AppError(422, 'Email not sent', 'SMTP is not configured or delivery failed');

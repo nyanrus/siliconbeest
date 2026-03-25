@@ -26,9 +26,11 @@ app.post('/:id/approve', async (c) => {
 	// Approve
 	await c.env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(id).run();
 
-	// Send welcome email (best-effort)
+	// Send welcome email (best-effort — never block approval)
 	if (user.email) {
-		await sendWelcome(c.env, c.env.DB, user.email as string, account.username as string);
+		try {
+			await sendWelcome(c.env, user.email as string, account.username as string);
+		} catch { /* email queue failure should not block approval */ }
 	}
 
 	const acct = account.domain ? `${account.username}@${account.domain}` : (account.username as string);

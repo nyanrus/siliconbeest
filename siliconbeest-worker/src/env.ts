@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import type { QueueMessage } from './types/queue';
+import type { QueueMessage, SendEmailMessage } from './types/queue';
 
 /**
  * Cloudflare Workers environment bindings.
@@ -20,6 +20,7 @@ export interface Env {
   // Queues (producer bindings)
   QUEUE_FEDERATION: Queue<QueueMessage>;
   QUEUE_INTERNAL: Queue<QueueMessage>;
+  QUEUE_EMAIL: Queue<SendEmailMessage>;
 
   // Durable Objects
   STREAMING_DO: DurableObjectNamespace;
@@ -33,13 +34,6 @@ export interface Env {
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   OTP_ENCRYPTION_KEY: string;
-
-  // SMTP (optional — email sending)
-  SMTP_HOST?: string;
-  SMTP_PORT?: string;
-  SMTP_USER?: string;
-  SMTP_PASS?: string;
-  SMTP_FROM?: string;
 }
 
 /**

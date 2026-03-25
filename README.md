@@ -61,12 +61,14 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
 - **Admin dashboard** -- accounts, reports, domain blocks, rules, settings, announcements, relays, custom emojis, federation
 
 ### Operations
-- **Email** -- SMTP via worker-mailer (password reset, notifications)
+- **Email** -- dedicated email-sender worker consuming from a queue, SMTP via worker-mailer (password reset, notifications)
 - **Sentry integration** -- optional error tracking (admin opt-in)
 
 ---
 
 ## Architecture
+
+SiliconBeest runs as 4 Cloudflare Workers:
 
 ```
                         Clients (Mastodon apps, web)
@@ -105,7 +107,22 @@ SiliconBeest is a fully-featured [Mastodon API](https://docs.joinmastodon.org/ap
                                    | Queue |     | Queue |
                                    | fed.  |     | int.  |
                                    +------+     +------+
+
+                              +-----------------------------+
+                              | siliconbeest-email-sender   |
+                              |                             |
+                              |  - SMTP via worker-mailer   |
+                              |  - Password reset emails    |
+                              |  - Notification emails      |
+                              +-----------------------------+
+                                          |
+                                     +--------+
+                                     | Queue  |
+                                     | email  |
+                                     +--------+
 ```
+
+The main worker enqueues email jobs to the `email` queue via its `QUEUE_EMAIL` producer binding. The email-sender worker consumes from that queue and sends mail via SMTP using [worker-mailer](https://github.com/nicepkg/worker-mailer).
 
 ---
 
@@ -148,6 +165,7 @@ cd siliconbeest
 # Install dependencies for all sub-projects
 cd siliconbeest-worker && npm install && cd ..
 cd siliconbeest-queue-consumer && npm install && cd ..
+cd siliconbeest-email-sender && npm install && cd ..
 cd siliconbeest-vue && npm install && cd ..
 ```
 
@@ -232,7 +250,8 @@ See [scripts/README.md](scripts/README.md) for all update options and flags.
 ```
 siliconbeest/
   siliconbeest-worker/          # API server (Hono on Workers)
-  siliconbeest-queue-consumer/  # Async job processor (Queues consumer)
+  siliconbeest-queue-consumer/  # Async job processor (federation + internal queues)
+  siliconbeest-email-sender/    # Email sender (email queue consumer, SMTP via worker-mailer)
   siliconbeest-vue/             # Web frontend (Vue 3 SPA)
   scripts/                      # Setup, deploy, and maintenance scripts
   FEDERATION.md                 # Federation capabilities (FEP-67ff)
@@ -242,6 +261,7 @@ See each sub-project README for details:
 
 - [siliconbeest-worker/](siliconbeest-worker/) -- API Worker ([README](siliconbeest-worker/README.md))
 - [siliconbeest-queue-consumer/](siliconbeest-queue-consumer/) -- Queue Consumer ([README](siliconbeest-queue-consumer/README.md))
+- [siliconbeest-email-sender/](siliconbeest-email-sender/) -- Email Sender ([README](siliconbeest-email-sender/README.md))
 - [siliconbeest-vue/](siliconbeest-vue/) -- Vue Frontend ([README](siliconbeest-vue/README.md))
 - [scripts/](scripts/) -- Setup, deploy, update, backup scripts ([README](scripts/README.md))
 
@@ -325,7 +345,10 @@ cd siliconbeest-worker && npx wrangler dev
 # Terminal 2 -- Queue consumer
 cd siliconbeest-queue-consumer && npx wrangler dev
 
-# Terminal 3 -- Vue frontend (port 5173)
+# Terminal 3 -- Email sender
+cd siliconbeest-email-sender && npx wrangler dev
+
+# Terminal 4 -- Vue frontend (port 5173)
 cd siliconbeest-vue && npm run dev
 ```
 
