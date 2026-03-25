@@ -41,7 +41,7 @@ describe('Auth Store', () => {
   it('clears state on logout', () => {
     const store = useAuthStore();
     store.setToken('test-token');
-    store.logout();
+    await store.logout();
     expect(store.token).toBeNull();
     expect(store.isAuthenticated).toBe(false);
     expect(localStorage.getItem('siliconbeest_token')).toBeNull();
