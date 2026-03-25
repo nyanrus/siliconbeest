@@ -300,7 +300,7 @@ app.post('/', async (c) => {
 			const now = new Date().toISOString();
 			const codeId = crypto.randomUUID();
 			await c.env.DB.prepare(
-				`INSERT INTO oauth_authorization_codes (id, oauth_application_id, user_id, code, redirect_uri, scopes, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+				`INSERT INTO oauth_authorization_codes (id, application_id, user_id, code, redirect_uri, scopes, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
 			).bind(codeId, oauthApp.id, tokenPayload.user.id, codeValue, redirectUri, scope, now, new Date(Date.now() + 600000).toISOString()).run();
 			const sep = redirectUri.includes('?') ? '&' : '?';
 			return c.redirect(`${redirectUri}${sep}code=${codeValue}${state ? '&state=' + encodeURIComponent(state) : ''}`);
