@@ -38,7 +38,7 @@ describe('Auth Store', () => {
     expect(store.isAuthenticated).toBe(true);
   });
 
-  it('clears state on logout', () => {
+  it('clears state on logout', async () => {
     const store = useAuthStore();
     store.setToken('test-token');
     await store.logout();
