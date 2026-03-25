@@ -115,7 +115,7 @@ export function serializeAccount(
     statuses_count: row.statuses_count,
     followers_count: row.followers_count,
     following_count: row.following_count,
-    fields: opts?.fields ?? parseJsonField((row as any).fields, []),
+    fields: (opts?.fields ?? parseJsonField((row as any).fields, [])).filter((f: any) => f.name || f.value),
     emojis: opts?.emojis ?? [],
   };
 

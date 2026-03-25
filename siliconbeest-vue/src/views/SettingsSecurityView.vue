@@ -244,12 +244,6 @@ onMounted(loadCredentials)
       </div>
     </div>
 
-    <!-- Two-Factor Authentication Section (placeholder) -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold mb-1">{{ t('auth.two_factor') }}</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400">
-        {{ t('settings.twoFactorSetup') }}
-      </p>
-    </div>
+    <!-- Two-Factor Authentication: TODO — implement TOTP setup UI -->
   </div>
 </template>
