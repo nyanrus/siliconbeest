@@ -11,17 +11,30 @@ import { applyMigration, createTestUser, authHeaders } from './helpers';
  *   - Dummy client token:  1x00000000000000000000AA
  */
 
+const TABLE_DELETE_ORDER = [
+	'webauthn_credentials', 'status_preview_cards', 'preview_cards', 'media_proxy_cache',
+	'emoji_reactions', 'filter_statuses', 'filter_keywords', 'filters', 'user_preferences',
+	'markers', 'home_timeline_entries', 'conversation_accounts', 'conversations',
+	'web_push_subscriptions', 'account_warnings', 'reports', 'list_accounts', 'lists',
+	'tag_follows', 'status_tags', 'tags', 'mentions', 'notifications', 'bookmarks',
+	'mutes', 'blocks', 'favourites', 'follow_requests', 'follows', 'poll_votes', 'polls',
+	'media_attachments', 'statuses', 'oauth_authorization_codes', 'oauth_access_tokens',
+	'oauth_applications', 'actor_keys', 'users', 'accounts',
+	'domain_allows', 'domain_blocks', 'email_domain_blocks', 'ip_blocks',
+	'instances', 'custom_emojis', 'announcements', 'rules', 'relays', 'settings',
+];
+
 async function resetDB() {
-	const tables = await env.DB.prepare(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
-	).all<{ name: string }>();
-	if (tables.results && tables.results.length > 0) {
-		const sql = 'PRAGMA foreign_keys = OFF;\n'
-			+ tables.results.map((r) => `DROP TABLE IF EXISTS "${r.name}";`).join('\n')
-			+ '\nPRAGMA foreign_keys = ON;';
-		await env.DB.exec(sql);
+	for (const table of TABLE_DELETE_ORDER) {
+		try {
+			await env.DB.prepare(`DELETE FROM "${table}"`).run();
+		} catch { /* table may not exist yet */ }
 	}
 }
+
+let migrated = false;
+
+const DEFAULT_SETTINGS_SQL = "INSERT INTO settings (key, value, updated_at) VALUES ('registration_mode', 'open', datetime('now')), ('site_title', 'SiliconBeest', datetime('now')), ('site_description', '', datetime('now')), ('site_contact_email', '', datetime('now')), ('site_contact_username', '', datetime('now')), ('max_toot_chars', '500', datetime('now')), ('max_media_attachments', '4', datetime('now')), ('max_poll_options', '4', datetime('now')), ('poll_max_characters_per_option', '50', datetime('now')), ('media_max_image_size', '16777216', datetime('now')), ('media_max_video_size', '104857600', datetime('now')), ('thumbnail_enabled', '1', datetime('now')), ('trends_enabled', '1', datetime('now')), ('require_invite', '0', datetime('now')), ('min_password_length', '8', datetime('now'))";
 
 const PASS_SECRET = '1x0000000000000000000000000000000AA';
 const FAIL_SECRET = '2x0000000000000000000000000000000AA';
@@ -79,8 +92,14 @@ async function loginRequest(body: Record<string, unknown>) {
 
 describe('Turnstile CAPTCHA verification', () => {
 	beforeEach(async () => {
-		await resetDB();
-		await applyMigration();
+		if (!migrated) {
+			await applyMigration();
+			migrated = true;
+		} else {
+			await resetDB();
+			await env.DB.prepare(DEFAULT_SETTINGS_SQL).run();
+		}
+		await env.CACHE.delete('settings:turnstile');
 	});
 
 	// =========================================================================
@@ -92,24 +111,24 @@ describe('Turnstile CAPTCHA verification', () => {
 			await enableTurnstile();
 			const res = await registerRequest({});
 			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
+			const json = (await res.json()) as { error: string; error_description?: string };
+			expect(json.error_description || json.error).toContain('CAPTCHA');
 		});
 
 		it('2. Registration with empty turnstile_token returns 422', async () => {
 			await enableTurnstile();
 			const res = await registerRequest({ turnstile_token: '' });
 			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
+			const json = (await res.json()) as { error: string; error_description?: string };
+			expect(json.error_description || json.error).toContain('CAPTCHA');
 		});
 
 		it('3. Registration with invalid turnstile_token (failing secret) returns 422', async () => {
 			await enableTurnstile(FAIL_SECRET);
 			const res = await registerRequest({ turnstile_token: DUMMY_TOKEN });
 			expect(res.status).toBe(422);
-			const json = (await res.json()) as { error: string };
-			expect(json.error).toContain('CAPTCHA');
+			const json = (await res.json()) as { error: string; error_description?: string };
+			expect(json.error_description || json.error).toContain('CAPTCHA');
 		});
 
 		it('4. Registration with valid turnstile_token (passing secret) succeeds', async () => {

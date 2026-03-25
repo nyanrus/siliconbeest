@@ -12,13 +12,27 @@ import { base64urlEncode, base64urlDecode } from '../src/utils/webauthn';
  */
 
 // Drop all tables so applyMigration can recreate them cleanly.
+// Tables in reverse dependency order (children first, parents last)
+const TABLE_DELETE_ORDER = [
+	'webauthn_credentials', 'status_preview_cards', 'preview_cards', 'media_proxy_cache',
+	'emoji_reactions', 'filter_statuses', 'filter_keywords', 'filters', 'user_preferences',
+	'markers', 'home_timeline_entries', 'conversation_accounts', 'conversations',
+	'web_push_subscriptions', 'account_warnings', 'reports', 'list_accounts', 'lists',
+	'tag_follows', 'status_tags', 'tags', 'mentions', 'notifications', 'bookmarks',
+	'mutes', 'blocks', 'favourites', 'follow_requests', 'follows', 'poll_votes', 'polls',
+	'media_attachments', 'statuses', 'oauth_authorization_codes', 'oauth_access_tokens',
+	'oauth_applications', 'actor_keys', 'users', 'accounts',
+	'domain_allows', 'domain_blocks', 'email_domain_blocks', 'ip_blocks',
+	'instances', 'custom_emojis', 'announcements', 'rules', 'relays', 'settings',
+];
+
 async function resetDB() {
-	const tables = await env.DB.prepare(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'",
-	).all<{ name: string }>();
-	// Delete all data from all tables (without dropping them)
-	for (const row of tables.results ?? []) {
-		await env.DB.prepare(`DELETE FROM "${row.name}"`).run();
+	for (const table of TABLE_DELETE_ORDER) {
+		try {
+			await env.DB.prepare(`DELETE FROM "${table}"`).run();
+		} catch {
+			// Table may not exist yet on first run
+		}
 	}
 }
 
