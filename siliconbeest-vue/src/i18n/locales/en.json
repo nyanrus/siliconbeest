@@ -621,6 +621,15 @@
     "error_cancelled": "Passkey operation was cancelled",
     "error_failed": "Passkey verification failed"
   },
+  "turnstile": {
+    "title": "Turnstile (CAPTCHA)",
+    "description": "Protect registration and login with Cloudflare Turnstile",
+    "enabled": "Enable Turnstile",
+    "site_key": "Site Key",
+    "secret_key": "Secret Key",
+    "get_keys": "Get keys from Cloudflare Dashboard",
+    "verification_failed": "CAPTCHA verification failed. Please try again."
+  },
   "report": {
     "title": "Report",
     "submit": "Submit report",

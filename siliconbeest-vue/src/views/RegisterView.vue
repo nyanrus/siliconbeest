@@ -11,7 +11,7 @@ const auth = useAuthStore()
 
 const error = ref<string | null>(null)
 
-async function handleRegister(data: { username: string; email: string; password: string; agreement?: boolean }) {
+async function handleRegister(data: { username: string; email: string; password: string; turnstile_token?: string; agreement?: boolean }) {
   error.value = null
   try {
     const result = await auth.register({
@@ -19,6 +19,7 @@ async function handleRegister(data: { username: string; email: string; password:
       email: data.email,
       password: data.password,
       agreement: true,
+      turnstile_token: data.turnstile_token,
     })
     if (result.confirmationRequired) {
       router.push({ path: '/auth/confirm-email-sent', query: { email: data.email } })

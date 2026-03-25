@@ -55,11 +55,11 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, turnstile_token?: string) {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await apiLogin(email, password);
+      const { data } = await apiLogin(email, password, turnstile_token);
       setToken(data.access_token);
       await fetchCurrentUser();
     } catch (e) {
@@ -77,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     agreement?: boolean;
     locale?: string;
     reason?: string;
+    turnstile_token?: string;
   }): Promise<{ confirmationRequired: boolean }> {
     loading.value = true;
     error.value = null;

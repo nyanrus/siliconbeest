@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTurnstile } from '@/composables/useTurnstile'
 
 const { t } = useI18n()
+const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
 defineProps<{
   registrationOpen?: boolean
 }>()
 
 const emit = defineEmits<{
-  submit: [data: { username: string; email: string; password: string }]
+  submit: [data: { username: string; email: string; password: string; turnstile_token?: string }]
 }>()
 
 const username = ref('')
@@ -18,6 +20,7 @@ const password = ref('')
 const confirmPassword = ref('')
 const agreement = ref(false)
 const loading = ref(false)
+const error = ref('')
 
 const passwordsMatch = computed(() => password.value === confirmPassword.value)
 
@@ -30,14 +33,36 @@ const canSubmit = computed(() =>
   !loading.value
 )
 
+const turnstileRendered = ref(false)
+
+function tryRenderTurnstile() {
+  if (turnstileEnabled.value && !turnstileRendered.value) {
+    renderTurnstile('turnstile-register')
+    turnstileRendered.value = true
+  }
+}
+
+onMounted(() => {
+  tryRenderTurnstile()
+})
+
+watch(turnstileEnabled, (enabled) => {
+  if (enabled) tryRenderTurnstile()
+})
+
 function handleSubmit() {
   if (!canSubmit.value) return
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    error.value = t('turnstile.verification_failed')
+    return
+  }
   loading.value = true
+  error.value = ''
   emit('submit', {
     username: username.value,
     email: email.value,
     password: password.value,
-    agreement: true,
+    turnstile_token: turnstileToken.value || undefined,
   })
   loading.value = false
 }
@@ -46,6 +71,11 @@ function handleSubmit() {
 <template>
   <form @submit.prevent="handleSubmit" class="space-y-4">
     <h1 class="text-2xl font-bold text-center">{{ t('auth.sign_up') }}</h1>
+
+    <!-- Error -->
+    <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm" role="alert">
+      {{ error }}
+    </div>
 
     <!-- Registration closed -->
     <div v-if="registrationOpen === false" class="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-sm text-center">
@@ -118,6 +148,9 @@ function handleSubmit() {
           <router-link to="/about" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('auth.server_rules') }}</router-link>
         </span>
       </label>
+
+      <!-- Turnstile CAPTCHA -->
+      <div v-if="turnstileEnabled" id="turnstile-register" class="flex justify-center"></div>
 
       <!-- Submit -->
       <button

@@ -47,10 +47,10 @@ export function revokeToken(params: {
 }
 
 // Direct login endpoint (non-standard, for the built-in frontend)
-export function login(email: string, password: string) {
+export function login(email: string, password: string, turnstile_token?: string) {
   return apiFetch<Token>('/v1/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, turnstile_token }),
   });
 }
 
@@ -69,6 +69,7 @@ export function register(params: {
   agreement?: boolean;
   locale?: string;
   reason?: string;
+  turnstile_token?: string;
 }) {
   return apiFetch<RegisterResponse>('/v1/accounts', {
     method: 'POST',

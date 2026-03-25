@@ -36,6 +36,9 @@ const settings = ref({
   smtp_from_address: '',
   smtp_secure: 'false',
   smtp_auth_type: 'auto',
+  turnstile_enabled: '0',
+  turnstile_site_key: '',
+  turnstile_secret_key: '',
 })
 
 async function uploadImage(event: Event, field: 'site_favicon_url' | 'site_logo_url') {
@@ -273,6 +276,42 @@ const labelClass = 'block text-sm font-medium mb-1'
               {{ smtpTestResult }}
             </span>
           </div>
+        </div>
+      </section>
+
+      <!-- Turnstile (CAPTCHA) -->
+      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-semibold mb-4">{{ t('turnstile.title') }}</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">{{ t('turnstile.description') }}</p>
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                :checked="settings.turnstile_enabled === '1'"
+                @change="settings.turnstile_enabled = ($event.target as HTMLInputElement).checked ? '1' : '0'"
+                class="sr-only peer"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+            </label>
+            <span class="text-sm font-medium">{{ t('turnstile.enabled') }}</span>
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('turnstile.site_key') }}</label>
+            <input v-model="settings.turnstile_site_key" :class="inputClass" placeholder="0x4AAAAAAXXXXXXX" />
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('turnstile.secret_key') }}</label>
+            <input v-model="settings.turnstile_secret_key" type="password" :class="inputClass" placeholder="0x4AAAAAAXXXXXXX" />
+          </div>
+          <a
+            href="https://dash.cloudflare.com/?to=/:account/turnstile"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            {{ t('turnstile.get_keys') }} &rarr;
+          </a>
         </div>
       </section>
 

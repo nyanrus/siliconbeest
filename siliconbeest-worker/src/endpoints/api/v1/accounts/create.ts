@@ -4,6 +4,7 @@ import { AppError } from '../../../../middleware/errorHandler';
 import { createDefaultImages } from '../../../../utils/defaultImages';
 import { generateToken } from '../../../../utils/crypto';
 import { sendConfirmation } from '../../../../services/email';
+import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -69,6 +70,7 @@ app.post('/', async (c) => {
     password: string;
     agreement: boolean;
     locale?: string;
+    turnstile_token?: string;
   }>();
 
   if (!body.username || !body.email || !body.password) {
@@ -77,6 +79,19 @@ app.post('/', async (c) => {
 
   if (!body.agreement) {
     throw new AppError(422, 'Validation failed', 'Agreement must be accepted');
+  }
+
+  // Turnstile CAPTCHA verification (if enabled)
+  const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+  if (turnstile.enabled && turnstile.secretKey) {
+    if (!body.turnstile_token) {
+      throw new AppError(422, 'Validation failed', 'CAPTCHA verification failed. Please try again.');
+    }
+    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For');
+    const valid = await verifyTurnstile(body.turnstile_token, turnstile.secretKey, ip);
+    if (!valid) {
+      throw new AppError(422, 'Validation failed', 'CAPTCHA verification failed. Please try again.');
+    }
   }
 
   // Check registration mode from DB settings first, fall back to env var

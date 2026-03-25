@@ -309,6 +309,10 @@ export interface InstanceConfiguration {
   translation: {
     enabled: boolean;
   };
+  turnstile?: {
+    enabled: boolean;
+    site_key: string;
+  };
 }
 
 export interface InstanceRule {

@@ -9,15 +9,29 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { generateUlid } from '../../../../utils/ulid';
+import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 app.post('/', async (c) => {
-	const body = await c.req.json<{ email?: string; password?: string }>().catch(() => ({} as any));
+	const body = await c.req.json<{ email?: string; password?: string; turnstile_token?: string }>().catch(() => ({} as any));
 	const { email, password } = body;
 
 	if (!email || !password) {
 		return c.json({ error: 'Email and password are required' }, 422);
+	}
+
+	// Turnstile CAPTCHA verification (if enabled)
+	const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
+	if (turnstile.enabled && turnstile.secretKey) {
+		if (!body.turnstile_token) {
+			return c.json({ error: 'CAPTCHA verification failed. Please try again.' }, 422);
+		}
+		const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For');
+		const valid = await verifyTurnstile(body.turnstile_token, turnstile.secretKey, ip);
+		if (!valid) {
+			return c.json({ error: 'CAPTCHA verification failed. Please try again.' }, 422);
+		}
 	}
 
 	// Find user by email

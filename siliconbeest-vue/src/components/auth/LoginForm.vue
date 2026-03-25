@@ -1,24 +1,47 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTurnstile } from '@/composables/useTurnstile'
 
 const { t } = useI18n()
+const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
 const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const passkeyLoading = ref(false)
+const turnstileRendered = ref(false)
 
 const supportsPasskeys = computed(() => typeof window !== 'undefined' && !!window.PublicKeyCredential)
 
 const emit = defineEmits(['submit', 'passkey'])
 
+function tryRenderTurnstile() {
+  if (turnstileEnabled.value && !turnstileRendered.value) {
+    renderTurnstile('turnstile-login')
+    turnstileRendered.value = true
+  }
+}
+
+onMounted(() => {
+  tryRenderTurnstile()
+})
+
+// Instance store may load after mount — watch for it
+watch(turnstileEnabled, (enabled) => {
+  if (enabled) tryRenderTurnstile()
+})
+
 async function handleSubmit() {
   if (!email.value || !password.value) return
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    error.value = t('turnstile.verification_failed')
+    return
+  }
   loading.value = true
   error.value = ''
-  emit('submit', { email: email.value, password: password.value })
+  emit('submit', { email: email.value, password: password.value, turnstile_token: turnstileToken.value })
   loading.value = false
 }
 
@@ -75,6 +98,9 @@ function handlePasskeyLogin() {
         {{ t('auth.forgot_password') }}
       </router-link>
     </div>
+
+    <!-- Turnstile CAPTCHA -->
+    <div v-if="turnstileEnabled" id="turnstile-login" class="flex justify-center"></div>
 
     <!-- Submit -->
     <button

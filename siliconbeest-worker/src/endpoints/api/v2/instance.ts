@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
+import { getTurnstileSettings } from '../../../utils/turnstile';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -14,6 +15,9 @@ app.get('/', async (c) => {
   for (const row of settingsRows ?? []) {
     dbSettings[row.key as string] = row.value as string;
   }
+
+  // Turnstile settings (cached in KV)
+  const turnstile = await getTurnstileSettings(c.env.DB, c.env.CACHE);
 
   const title = dbSettings.site_title || c.env.INSTANCE_TITLE || domain;
   const registrationMode = dbSettings.registration_mode || c.env.REGISTRATION_MODE || 'none';
@@ -90,6 +94,10 @@ app.get('/', async (c) => {
       },
       translation: {
         enabled: false,
+      },
+      turnstile: {
+        enabled: turnstile.enabled && !!turnstile.siteKey,
+        site_key: turnstile.enabled ? turnstile.siteKey : '',
       },
     },
     registrations: {

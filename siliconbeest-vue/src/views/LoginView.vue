@@ -11,10 +11,10 @@ const route = useRoute()
 const auth = useAuthStore()
 const error = ref('')
 
-async function handleLogin(credentials: { email: string; password: string }) {
+async function handleLogin(credentials: { email: string; password: string; turnstile_token?: string }) {
   error.value = ''
   try {
-    await auth.login(credentials.email, credentials.password)
+    await auth.login(credentials.email, credentials.password, credentials.turnstile_token)
     const redirect = (route.query.redirect as string) || '/home'
     router.push(redirect)
   } catch (e: any) {
