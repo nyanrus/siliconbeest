@@ -1,3 +1,4 @@
+import { nodeInfoToJson } from '@fedify/fedify';
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 
@@ -70,35 +71,36 @@ app.get('/2.1', async (c) => {
 	const stats = await getStats(c.env.DB, c.env.CACHE);
 	const registrationOpen = c.env.REGISTRATION_MODE === 'open';
 
-	return c.json(
-		{
-			version: '2.1',
-			software: {
-				name: 'siliconbeest',
-				version: '0.1.0',
-				repository: 'https://github.com/nicepkg/siliconbeest',
-				homepage: `https://${c.env.INSTANCE_DOMAIN}`,
-			},
-			protocols: ['activitypub'],
-			usage: {
-				users: {
-					total: stats.userCount,
-					activeMonth: stats.userCount,
-					activeHalfyear: stats.userCount,
-				},
-				localPosts: stats.statusCount,
-				localComments: stats.localComments,
-			},
-			openRegistrations: registrationOpen,
-			services: {
-				inbound: [],
-				outbound: [],
-			},
-			metadata: {
-				nodeName: c.env.INSTANCE_TITLE || 'SiliconBeest',
-				nodeDescription: `A SiliconBeest instance at ${c.env.INSTANCE_DOMAIN}`,
-			},
+	const nodeInfo = {
+		software: {
+			name: 'siliconbeest',
+			version: '0.1.0',
+			repository: new URL('https://github.com/nicepkg/siliconbeest'),
+			homepage: new URL(`https://${c.env.INSTANCE_DOMAIN}`),
 		},
+		protocols: ['activitypub'] as const,
+		usage: {
+			users: {
+				total: stats.userCount,
+				activeMonth: stats.userCount,
+				activeHalfyear: stats.userCount,
+			},
+			localPosts: stats.statusCount,
+			localComments: stats.localComments,
+		},
+		openRegistrations: registrationOpen,
+		services: {
+			inbound: [],
+			outbound: [],
+		},
+		metadata: {
+			nodeName: c.env.INSTANCE_TITLE || 'SiliconBeest',
+			nodeDescription: `A SiliconBeest instance at ${c.env.INSTANCE_DOMAIN}`,
+		},
+	};
+
+	return c.json(
+		{ version: '2.1', ...(nodeInfoToJson(nodeInfo) as object) },
 		200,
 		{
 			'Content-Type': 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"',
@@ -112,29 +114,31 @@ app.get('/2.0', async (c) => {
 	const stats = await getStats(c.env.DB, c.env.CACHE);
 	const registrationOpen = c.env.REGISTRATION_MODE === 'open';
 
-	return c.json(
-		{
-			version: '2.0',
-			software: {
-				name: 'siliconbeest',
-				version: '0.1.0',
-			},
-			protocols: ['activitypub'],
-			usage: {
-				users: {
-					total: stats.userCount,
-					activeMonth: stats.userCount,
-					activeHalfyear: stats.userCount,
-				},
-				localPosts: stats.statusCount,
-			},
-			openRegistrations: registrationOpen,
-			services: {
-				outbound: [],
-				inbound: [],
-			},
-			metadata: {},
+	const nodeInfo = {
+		software: {
+			name: 'siliconbeest',
+			version: '0.1.0',
 		},
+		protocols: ['activitypub'] as const,
+		usage: {
+			users: {
+				total: stats.userCount,
+				activeMonth: stats.userCount,
+				activeHalfyear: stats.userCount,
+			},
+			localPosts: stats.statusCount,
+			localComments: 0,
+		},
+		openRegistrations: registrationOpen,
+		services: {
+			outbound: [],
+			inbound: [],
+		},
+		metadata: {},
+	};
+
+	return c.json(
+		{ ...(nodeInfoToJson(nodeInfo) as object), version: '2.0' },
 		200,
 		{
 			'Content-Type': 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"',
