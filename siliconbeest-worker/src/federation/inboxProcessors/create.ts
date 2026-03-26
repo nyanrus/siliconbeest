@@ -370,5 +370,21 @@ export async function processCreate(
 			statusId,
 			accountId: authorAccountId,
 		});
+	} else {
+		// For DMs, add to mentioned LOCAL users' home timelines
+		const now = new Date().toISOString();
+		const { results: localMentions } = await env.DB.prepare(
+			`SELECT m.account_id FROM mentions m
+			 JOIN accounts a ON a.id = m.account_id
+			 WHERE m.status_id = ?1 AND a.domain IS NULL`,
+		).bind(statusId).all();
+		if (localMentions && localMentions.length > 0) {
+			const stmts = localMentions.map((m: any) =>
+				env.DB.prepare(
+					'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+				).bind(statusId, m.account_id as string, now),
+			);
+			await env.DB.batch(stmts);
+		}
 	}
 }

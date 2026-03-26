@@ -343,7 +343,7 @@ export async function handleTimelineFanout(
      WHERE s.id = ?`,
   ).bind(statusId).first();
 
-  if (publicStatusRow && (publicStatusRow.visibility === 'public' || publicStatusRow.visibility === 'unlisted')) {
+  if (publicStatusRow && publicStatusRow.visibility === 'public') {
     const pubEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
     // Account emojis from accounts.emoji_tags
     const pubAccountEmojis = await fetchAccountEmojis(
