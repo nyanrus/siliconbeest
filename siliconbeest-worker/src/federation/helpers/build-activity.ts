@@ -61,7 +61,7 @@ export async function buildCreateActivity(actor: string, noteJsonLd: Record<stri
 	const create = new Create({
 		id: activityIdUrl(actor),
 		actor: new URL(actor),
-		published: noteJsonLd.published ? Temporal.Instant.from(noteJsonLd.published as string) : Temporal.Now.instant(),
+		published: noteJsonLd.published ? Temporal.Instant.from(String(noteJsonLd.published)) : Temporal.Now.instant(),
 	});
 	const createLd = (await create.toJsonLd()) as Record<string, unknown>;
 	// Replace the Fedify-generated object with our fully-formed note

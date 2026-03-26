@@ -1,18 +1,25 @@
 /**
- * Minimal Fedify Dispatcher Setup (Queue Consumer)
+ * Fedify Dispatcher Setup (Queue Consumer)
  *
- * Registers the actor dispatcher and key-pairs dispatcher on the
- * Federation instance.  The queue consumer needs these so that
- * Fedify can look up signing keys when `processQueuedTask()` sends
- * outgoing activities (HTTP Signatures / Object Integrity Proofs).
+ * Registers all Fedify dispatchers and listeners on the Federation
+ * instance. The queue consumer needs these because Fedify defers
+ * both inbox processing and outbound delivery to the queue:
  *
- * This is a slimmed-down copy of the worker's actor dispatcher —
- * it only returns key pairs (no full actor profile) because the
- * consumer never serves actor documents over HTTP.
+ * - Actor dispatcher + key-pairs: for signing outgoing HTTP requests
+ * - Inbox listeners: for processing deferred inbox activities
+ * - Collection dispatchers: for resolving followers during fanout
+ *
+ * Inbox listeners and collection dispatchers are defined locally in the
+ * consumer (inboxListeners.ts, collectionDispatchers.ts) to avoid the
+ * dual-package hazard with Fedify vocab types.
  */
 
 import type { Federation } from '@fedify/fedify';
 import type { FedifyContextData } from './fedify';
+
+// Note: setupInboxListeners and setupCollectionDispatchers are defined
+// locally in the consumer (inboxListeners.ts, collectionDispatchers.ts)
+// and imported in index.ts for processQueuedTask to handle inbox and fanout messages.
 
 /** Row shape for the actor_keys table. */
 interface ActorKeyRow {

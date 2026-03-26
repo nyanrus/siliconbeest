@@ -10,7 +10,7 @@
  * @see https://github.com/fedify-dev/fedify
  */
 
-import { createFederation, type Federation } from '@fedify/fedify';
+import { createFederation, type Federation, type MessageQueue } from '@fedify/fedify';
 import { WorkersKvStore, WorkersMessageQueue } from '@fedify/cfworkers';
 import type { Env } from './env';
 
@@ -21,6 +21,40 @@ import type { Env } from './env';
 export interface FedifyContextData {
   /** Cloudflare Workers environment bindings (D1, R2, KV, Queues, etc.) */
   env: Env;
+}
+
+/**
+ * Wrapper around WorkersMessageQueue that makes listen() a no-op.
+ *
+ * WorkersMessageQueue.listen() throws by design because Cloudflare Workers
+ * don't support background listeners — the queue consumer uses
+ * federation.processQueuedTask() instead. However, Fedify internally
+ * calls queue.listen() during processQueuedTask(). This wrapper prevents
+ * that TypeError from crashing the consumer.
+ *
+ * enqueue() works normally — messages are re-enqueued for retries.
+ */
+class CloudflareMessageQueue implements MessageQueue {
+  private inner: WorkersMessageQueue;
+
+  constructor(queue: Queue) {
+    this.inner = new WorkersMessageQueue(queue);
+  }
+
+  enqueue(
+    message: unknown,
+    options?: Parameters<WorkersMessageQueue['enqueue']>[1],
+  ): Promise<void> {
+    return this.inner.enqueue(message, options);
+  }
+
+  async listen(
+    _handler: (message: unknown) => Promise<void> | void,
+    _options?: Record<string, unknown>,
+  ): Promise<void> {
+    // No-op: Cloudflare Workers use processQueuedTask() in the queue consumer.
+    // WorkersMessageQueue.listen() throws TypeError by design.
+  }
 }
 
 /**
@@ -36,7 +70,7 @@ export interface FedifyContextData {
 export function createFed(env: Env): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
-    queue: new WorkersMessageQueue(env.QUEUE_FEDERATION),
+    queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION),
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),

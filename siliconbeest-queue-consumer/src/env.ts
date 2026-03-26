@@ -14,4 +14,14 @@ export interface Env {
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   INSTANCE_DOMAIN: string;
+
+  // Fields required by worker's inbox listeners/dispatchers when imported
+  // cross-package. These are not actual bindings in the consumer's wrangler.jsonc
+  // but are needed for TypeScript compatibility.
+  SESSIONS?: KVNamespace;
+  QUEUE_EMAIL?: Queue;
+  STREAMING_DO?: DurableObjectNamespace;
+  INSTANCE_TITLE?: string;
+  REGISTRATION_MODE?: string;
+  OTP_ENCRYPTION_KEY?: string;
 }

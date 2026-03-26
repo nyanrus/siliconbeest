@@ -109,6 +109,16 @@ export interface Status {
   bookmarked?: boolean;
   pinned?: boolean;
   filtered?: FilterResult[];
+  emoji_reactions?: EmojiReaction[];
+}
+
+export interface EmojiReaction {
+  name: string;
+  count: number;
+  me: boolean;
+  url: string | null;
+  static_url: string | null;
+  accounts?: Account[];
 }
 
 export interface MediaAttachment {

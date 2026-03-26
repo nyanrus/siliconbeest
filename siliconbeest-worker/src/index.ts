@@ -138,7 +138,7 @@ app.use('*', async (c, next) => {
     }
   }
 
-  const fed = createFed(c.env);
+  const fed = createFed(c.env, (p) => c.executionCtx.waitUntil(p));
   setupActorDispatcher(fed);
   setupNodeInfoDispatcher(fed);
   setupCollectionDispatchers(fed);

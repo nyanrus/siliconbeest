@@ -13,6 +13,13 @@ import type { Env } from './env';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
+import { WorkersMessageQueue } from '@fedify/cfworkers';
+
+// Consumer-local inbox listeners and collection dispatchers.
+// These files use Fedify vocab types from the consumer's own node_modules,
+// avoiding the dual-package hazard that occurs when importing from the worker.
+import { setupInboxListeners } from './inboxListeners';
+import { setupCollectionDispatchers } from './collectionDispatchers';
 import { handleDeliverActivity } from './handlers/deliverActivity';
 import { handleDeliverActivityFanout } from './handlers/deliverActivityFanout';
 import { handleTimelineFanout } from './handlers/timelineFanout';
@@ -71,10 +78,53 @@ export default {
 
         // ---- Fedify queued tasks (from WorkersMessageQueue / sendActivity) ----
         if (isFedifyMessage(body)) {
-          const fed = createFed(env);
-          setupActorDispatcher(fed);
-          await fed.processQueuedTask({ env }, body as unknown as Parameters<typeof fed.processQueuedTask>[1]);
-          msg.ack();
+          console.log('[queue] Fedify message received:', JSON.stringify(body).slice(0, 200));
+          try {
+            const fed = createFed(env);
+            setupActorDispatcher(fed);
+            console.log('[queue] setupInboxListeners type:', typeof setupInboxListeners);
+            try {
+              setupInboxListeners(fed);
+              console.log('[queue] setupInboxListeners: OK');
+            } catch (e) {
+              console.error('[queue] setupInboxListeners FAILED:', e);
+            }
+            try {
+              setupCollectionDispatchers(fed);
+              console.log('[queue] setupCollectionDispatchers: OK');
+            } catch (e) {
+              console.error('[queue] setupCollectionDispatchers FAILED:', e);
+            }
+
+            // Use WorkersMessageQueue.processMessage() to unwrap __fedify_payload__
+            // and handle ordering key locks before calling processQueuedTask.
+            const wmq = new WorkersMessageQueue(env.QUEUE_FEDERATION);
+            const result = await wmq.processMessage(body);
+            console.log('[queue] processMessage result:', JSON.stringify({
+              shouldProcess: result.shouldProcess,
+              messageType: (result as any).message?.type,
+              messageKeys: Object.keys((result as any).message || {}),
+            }));
+            if (!result.shouldProcess) {
+              console.log('[queue] Fedify message deferred (ordering lock)');
+              msg.retry();
+              continue;
+            }
+            try {
+              console.log('[queue] Calling processQueuedTask with message type:', (result as any).message?.type);
+              await fed.processQueuedTask({ env }, result.message);
+              console.log('[queue] Fedify task processed successfully');
+              msg.ack();
+            } catch (taskErr) {
+              console.error('[queue] Fedify processQueuedTask error:', taskErr);
+              msg.retry();
+            } finally {
+              await result.release?.();
+            }
+          } catch (fedifyErr) {
+            console.error('[queue] Fedify setup error:', fedifyErr);
+            msg.retry();
+          }
           continue;
         }
 

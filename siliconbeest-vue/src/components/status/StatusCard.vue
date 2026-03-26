@@ -13,6 +13,7 @@ import StatusContent from './StatusContent.vue'
 import StatusActions from './StatusActions.vue'
 import MediaGallery from './MediaGallery.vue'
 import PreviewCard from './PreviewCard.vue'
+import StatusReactions from './StatusReactions.vue'
 import ReportDialog from '../common/ReportDialog.vue'
 import ImageViewer from '../common/ImageViewer.vue'
 
@@ -210,6 +211,11 @@ const emit = defineEmits<{
   deleted: [statusId: string]
 }>()
 
+// 리액션 업데이트 시 캐시 갱신
+function handleReactionUpdate(updatedStatus: Status) {
+  statusesStore.cacheStatus(updatedStatus)
+}
+
 async function handleDelete() {
   if (!confirm(t('status.delete_confirm'))) return
   try {
@@ -362,6 +368,13 @@ async function handleDelete() {
             :card="displayStatus.card"
           />
         </template>
+
+        <!-- 이모지 리액션 -->
+        <StatusReactions
+          :status="displayStatus"
+          class="mt-2"
+          @updated="handleReactionUpdate"
+        />
 
         <!-- Actions -->
         <StatusActions

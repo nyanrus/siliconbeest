@@ -1,15 +1,13 @@
 /**
- * Fedify Inbox Listener Registration
+ * Fedify Inbox Listener Registration (Queue Consumer)
  *
- * Wires up Fedify's `setInboxListeners` to call the existing 13 inbox
- * processors. Each listener:
- *   1. Receives a Fedify-typed activity (after Fedify has verified signatures)
- *   2. Converts it to the APActivity format via `adaptJsonLdToAPActivity`
- *   3. Resolves the local account ID from the inbox recipient identifier
- *   4. Calls the corresponding processor
+ * This is a consumer-local copy of the worker's inbox listener setup.
+ * The Fedify vocab types (Follow, Create, etc.) MUST be resolved from
+ * the consumer's own node_modules to avoid the "dual package hazard"
+ * where different class instances cause dispatchWithClass to fail.
  *
- * This file is created as part of Phase 2 (Fedify listener registration).
- * It will NOT be imported/used until Phase 3 wires it up in index.ts.
+ * The inbox processor functions (plain business logic) are still imported
+ * from the worker's source tree — they don't use Fedify vocab types.
  */
 
 import type { Federation, InboxContext } from '@fedify/fedify';
@@ -30,51 +28,38 @@ import {
 	type Activity,
 } from '@fedify/vocab';
 
-import type { Env } from '../../env';
-import type { FedifyContextData } from '../fedify';
-import { adaptJsonLdToAPActivity } from '../helpers/activity-adapter';
-import { isEmojiReaction } from '../helpers/misskey-compat';
+import type { FedifyContextData } from './fedify';
+import type { Env } from './env';
+import { adaptJsonLdToAPActivity } from '../../siliconbeest-worker/src/federation/helpers/activity-adapter';
+import { isEmojiReaction } from '../../siliconbeest-worker/src/federation/helpers/misskey-compat';
 
-// Import existing processors
-import { processFollow } from '../inboxProcessors/follow';
-import { processCreate } from '../inboxProcessors/create';
-import { processAccept } from '../inboxProcessors/accept';
-import { processReject } from '../inboxProcessors/reject';
-import { processLike } from '../inboxProcessors/like';
-import { processAnnounce } from '../inboxProcessors/announce';
-import { processDelete } from '../inboxProcessors/delete';
-import { processUpdate } from '../inboxProcessors/update';
-import { processUndo } from '../inboxProcessors/undo';
-import { processBlock } from '../inboxProcessors/block';
-import { processMove } from '../inboxProcessors/move';
-import { processFlag } from '../inboxProcessors/flag';
-import { processEmojiReact } from '../inboxProcessors/emojiReact';
+// Import existing processors from the worker (plain functions, no Fedify types)
+import { processFollow } from '../../siliconbeest-worker/src/federation/inboxProcessors/follow';
+import { processCreate } from '../../siliconbeest-worker/src/federation/inboxProcessors/create';
+import { processAccept } from '../../siliconbeest-worker/src/federation/inboxProcessors/accept';
+import { processReject } from '../../siliconbeest-worker/src/federation/inboxProcessors/reject';
+import { processLike } from '../../siliconbeest-worker/src/federation/inboxProcessors/like';
+import { processAnnounce } from '../../siliconbeest-worker/src/federation/inboxProcessors/announce';
+import { processDelete } from '../../siliconbeest-worker/src/federation/inboxProcessors/delete';
+import { processUpdate } from '../../siliconbeest-worker/src/federation/inboxProcessors/update';
+import { processUndo } from '../../siliconbeest-worker/src/federation/inboxProcessors/undo';
+import { processBlock } from '../../siliconbeest-worker/src/federation/inboxProcessors/block';
+import { processMove } from '../../siliconbeest-worker/src/federation/inboxProcessors/move';
+import { processFlag } from '../../siliconbeest-worker/src/federation/inboxProcessors/flag';
+import { processEmojiReact } from '../../siliconbeest-worker/src/federation/inboxProcessors/emojiReact';
 
 // ============================================================
 // HELPER: Resolve local account ID from inbox recipient
 // ============================================================
 
-/**
- * Resolve the local account ID from the Fedify inbox context.
- *
- * For personal inboxes, `ctx.recipient` is the `{identifier}` extracted
- * from the path pattern `/users/{identifier}/inbox`. We look up the
- * corresponding account_id from the accounts table.
- *
- * For the shared inbox, `ctx.recipient` is `null` and we return an
- * empty string (matching the existing convention in processInboxActivity).
- */
 async function resolveRecipientAccountId(
 	ctx: InboxContext<FedifyContextData>,
 	env: Env,
 ): Promise<string> {
 	if (!ctx.recipient) {
-		// Shared inbox — no specific recipient
 		return '';
 	}
 
-	// ctx.recipient is the {identifier} from /users/{identifier}/inbox
-	// which is the username of the local account
 	const username = ctx.recipient;
 
 	const row = await env.DB.prepare(
@@ -97,10 +82,6 @@ async function resolveRecipientAccountId(
 // HELPER: Convert a Fedify activity to APActivity
 // ============================================================
 
-/**
- * Convert a Fedify typed activity to the APActivity format expected by
- * the existing inbox processors.
- */
 async function toAPActivity(activity: Activity) {
 	const jsonLd = await activity.toJsonLd();
 	return adaptJsonLdToAPActivity(jsonLd as Record<string, unknown>);
@@ -110,13 +91,6 @@ async function toAPActivity(activity: Activity) {
 // SETUP: Register all inbox listeners
 // ============================================================
 
-/**
- * Register Fedify inbox listeners for all 13 activity types.
- *
- * This sets up the personal inbox at `/users/{identifier}/inbox` and
- * the shared inbox at `/inbox`. Fedify handles HTTP signature verification
- * before calling these listeners.
- */
 export function setupInboxListeners(
 	federation: Federation<FedifyContextData>,
 ): void {
@@ -162,9 +136,6 @@ export function setupInboxListeners(
 		})
 
 		// ── Like ────────────────────────────────────────────────
-		// Misskey sends emoji reactions as Like activities with
-		// _misskey_reaction or content fields. We check after
-		// converting to JSON-LD/APActivity format.
 		.on(Like, async (ctx, like) => {
 			const { env } = ctx.data;
 			const jsonLd = await like.toJsonLd();
@@ -173,7 +144,6 @@ export function setupInboxListeners(
 			const localAccountId = await resolveRecipientAccountId(ctx, env);
 
 			if (isEmojiReaction(raw)) {
-				// Misskey-style emoji reaction disguised as a Like
 				await processEmojiReact(
 					activity as typeof activity & Record<string, unknown>,
 					localAccountId,

@@ -132,3 +132,25 @@ export function getRebloggedBy(id: string, token?: string) {
     { token },
   );
 }
+
+// 이모지 리액션 API
+export function getReactions(id: string, token?: string) {
+  return apiFetch<import('@/types/mastodon').EmojiReaction[]>(
+    `/v1/statuses/${id}/reactions`,
+    { token },
+  );
+}
+
+export function addReaction(id: string, emoji: string, token: string) {
+  return apiFetch<Status>(`/v1/statuses/${id}/react/${encodeURIComponent(emoji)}`, {
+    method: 'PUT',
+    token,
+  });
+}
+
+export function removeReaction(id: string, emoji: string, token: string) {
+  return apiFetch<Status>(`/v1/statuses/${id}/react/${encodeURIComponent(emoji)}`, {
+    method: 'DELETE',
+    token,
+  });
+}

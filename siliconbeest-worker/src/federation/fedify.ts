@@ -24,29 +24,40 @@ export interface FedifyContextData {
 }
 
 /**
- * Wrapper around WorkersMessageQueue that makes listen() a no-op.
+ * Wrapper around WorkersMessageQueue for Cloudflare Workers compatibility.
  *
- * WorkersMessageQueue.listen() throws by design because Cloudflare Workers
- * don't support background listeners — the queue consumer uses
- * federation.processQueuedTask() instead. However, Fedify's sendActivity()
- * internally calls queue.listen() as a side-effect. This wrapper prevents
- * that TypeError from becoming an unhandled rejection.
+ * Two critical fixes:
  *
- * enqueue() works normally — messages are sent to the Cloudflare Queue
- * and processed by the queue consumer worker.
+ * 1. listen() is a no-op — WorkersMessageQueue.listen() throws by design
+ *    because Cloudflare Workers use processQueuedTask() in the queue consumer.
+ *    Fedify's sendActivity() calls listen() internally as a side-effect.
+ *
+ * 2. enqueue() uses ctx.waitUntil() — Fedify's sendActivity() calls
+ *    fanoutQueue.enqueue() WITHOUT await (fire-and-forget). In Cloudflare
+ *    Workers, un-awaited Promises are killed when the response is sent.
+ *    We register each enqueue Promise with waitUntil() so the Worker
+ *    keeps running until the queue.send() actually completes.
  */
 class CloudflareMessageQueue implements MessageQueue {
   private inner: WorkersMessageQueue;
+  private waitUntilFn: ((promise: Promise<unknown>) => void) | null;
 
-  constructor(queue: Queue) {
+  constructor(queue: Queue, waitUntilFn?: (promise: Promise<unknown>) => void) {
     this.inner = new WorkersMessageQueue(queue);
+    this.waitUntilFn = waitUntilFn ?? null;
   }
 
   enqueue(
     message: any,
     options?: any,
   ): Promise<void> {
-    return this.inner.enqueue(message, options);
+    const promise = this.inner.enqueue(message, options);
+    // Register with waitUntil so Cloudflare doesn't kill the Worker
+    // before the queue.send() completes (Fedify doesn't await fanout enqueue)
+    if (this.waitUntilFn) {
+      this.waitUntilFn(promise);
+    }
+    return promise;
   }
 
   async listen(
@@ -61,17 +72,18 @@ class CloudflareMessageQueue implements MessageQueue {
 /**
  * Create a Fedify Federation instance for this request.
  *
- * When a queue is provided (QUEUE_FEDERATION), Fedify uses it for
- * asynchronous activity delivery via `sendActivity()`. The queue
- * consumer calls `federation.processQueuedTask()` to process them.
- *
  * @param env Cloudflare Workers Env bindings
+ * @param waitUntilFn Optional ctx.waitUntil() function from the Hono context
+ *                     to keep the Worker alive for fire-and-forget enqueues
  * @returns Configured Federation instance
  */
-export function createFed(env: Env): Federation<FedifyContextData> {
+export function createFed(
+  env: Env,
+  waitUntilFn?: (promise: Promise<unknown>) => void,
+): Federation<FedifyContextData> {
   return createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
-    queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION),
+    queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION, waitUntilFn),
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),

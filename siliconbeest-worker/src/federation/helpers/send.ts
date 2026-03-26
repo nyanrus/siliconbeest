@@ -59,12 +59,19 @@ export async function sendToFollowers(
 	senderUsername: string,
 	activity: Activity,
 ): Promise<void> {
-	const ctx = getFedifyContext(federation, env);
-	await ctx.sendActivity(
-		{ identifier: senderUsername },
-		'followers',
-		activity,
-	);
+	console.log(`[federation] sendToFollowers: sender=${senderUsername}, activity.type=${activity.constructor.name}`);
+	try {
+		const ctx = getFedifyContext(federation, env);
+		await ctx.sendActivity(
+			{ identifier: senderUsername },
+			'followers',
+			activity,
+		);
+		console.log(`[federation] sendToFollowers: enqueued successfully`);
+	} catch (err) {
+		console.error(`[federation] sendToFollowers error:`, err);
+		// Don't throw — federation failure shouldn't block the API response
+	}
 }
 
 /**
