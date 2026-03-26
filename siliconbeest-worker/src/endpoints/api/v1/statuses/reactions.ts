@@ -213,7 +213,7 @@ app.get('/:id/reactions', authOptional, async (c) => {
 		if (emojiUrlMap.has(shortcode)) continue;
 		const emojiDomain = row.ce_domain as string | null;
 		let url: string;
-		if (emojiDomain) {
+		if (emojiDomain && emojiDomain !== domain) {
 			// Remote custom emoji — proxy to protect user IPs
 			const originalUrl = imageKey.startsWith('http') ? imageKey : `https://${emojiDomain}/${imageKey}`;
 			url = `https://${domain}/proxy?url=${encodeURIComponent(originalUrl)}`;
@@ -244,7 +244,7 @@ app.get('/:id/reactions', authOptional, async (c) => {
 			const imageKey = er.image_key as string;
 			const emojiDomain = er.domain as string | null;
 			let url: string;
-			if (emojiDomain) {
+			if (emojiDomain && emojiDomain !== domain) {
 				const originalUrl = imageKey.startsWith('http') ? imageKey : `https://${emojiDomain}/${imageKey}`;
 				url = `https://${domain}/proxy?url=${encodeURIComponent(originalUrl)}`;
 			} else {

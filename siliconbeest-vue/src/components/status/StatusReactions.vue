@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import type { Status, EmojiReaction } from '@/types/mastodon'
 import { useAuthStore } from '@/stores/auth'
 import { getReactions, addReaction, removeReaction } from '@/api/mastodon/statuses'
@@ -19,6 +19,7 @@ const loading = ref(false)
 const showPicker = ref(false)
 const pickerRef = ref<HTMLElement | null>(null)
 const pickerBtnRef = ref<HTMLElement | null>(null)
+const pickerAbove = ref(true)
 
 // 리액션이 있는지 확인
 const hasReactions = computed(() => reactions.value.length > 0)
@@ -87,6 +88,15 @@ async function handleEmojiSelect(emoji: string) {
 
 function togglePicker() {
   showPicker.value = !showPicker.value
+  if (showPicker.value) {
+    nextTick(() => {
+      if (pickerBtnRef.value) {
+        const rect = pickerBtnRef.value.getBoundingClientRect()
+        // 피커 높이 약 300px. 위에 공간이 부족하면 아래로 표시
+        pickerAbove.value = rect.top > 320
+      }
+    })
+  }
 }
 
 // 피커 외부 클릭 시 닫기
@@ -181,7 +191,8 @@ function getShortcode(name: string): string {
       <div
         v-if="showPicker"
         ref="pickerRef"
-        class="absolute bottom-full mb-2 left-0 z-50"
+        class="absolute left-0 z-50"
+        :class="pickerAbove ? 'bottom-full mb-2' : 'top-full mt-2'"
       >
         <EmojiPicker @select="handleEmojiSelect" />
       </div>
