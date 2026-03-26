@@ -1,3 +1,4 @@
+import { signJsonLd, verifyJsonLd } from '@fedify/fedify';
 /**
  * Linked Data Signatures for ActivityPub
  *
@@ -161,17 +162,6 @@ export async function signLDSignature(
 	};
 }
 
-// ============================================================
-// VERIFICATION
-// ============================================================
-
-/**
- * Verify a Linked Data Signature on an incoming ActivityPub activity.
- *
- * @param activity - The activity with a signature field
- * @param publicKeyPem - SPKI PEM-encoded RSA public key
- * @returns true if the signature is valid, false otherwise
- */
 export async function verifyLDSignature(
 	activity: APActivity,
 	publicKeyPem: string,
