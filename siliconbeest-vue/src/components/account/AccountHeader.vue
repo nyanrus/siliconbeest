@@ -11,11 +11,21 @@ const { t } = useI18n()
 /** Replace :shortcode: with <img> for custom emojis */
 function emojifyText(text: string, emojis?: Array<{ shortcode: string; url: string; static_url: string }>): string {
   if (!emojis || emojis.length === 0 || !text) return text
+  // Deduplicate by shortcode to prevent double-replacement
+  const seen = new Set<string>()
+  const uniqueEmojis = emojis.filter(e => {
+    if (seen.has(e.shortcode)) return false
+    seen.add(e.shortcode)
+    return true
+  })
   let result = text
-  for (const e of emojis) {
+  for (const e of uniqueEmojis) {
+    // Use negative lookbehind/lookahead to avoid matching inside HTML attributes
+    // Simple approach: replace only :shortcode: that are NOT inside quotes
+    const escaped = e.shortcode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     result = result.replace(
-      new RegExp(`:${e.shortcode}:`, 'g'),
-      `<img src="${e.url}" alt=":${e.shortcode}:" title=":${e.shortcode}:" class="inline-block h-5 w-5 align-text-bottom" draggable="false" />`
+      new RegExp(`(?<!=")\\u200B?:${escaped}:\\u200B?`, 'g'),
+      `<img src="${e.url}" alt="${e.shortcode}" title="${e.shortcode}" class="inline-block h-5 w-5 align-text-bottom" draggable="false" />`
     )
   }
   return result

@@ -124,7 +124,14 @@ export function serializeAccount(
   if (accountEmojis.length === 0 && row.emoji_tags) {
     try {
       const tags = JSON.parse(row.emoji_tags) as Array<{ shortcode?: string; name?: string; url?: string; static_url?: string }>;
-      accountEmojis = tags.map((t) => ({
+      // Deduplicate by shortcode to prevent double-replacement in emojify
+      const seen = new Set<string>();
+      accountEmojis = tags.filter((t) => {
+        const sc = t.shortcode || (t.name || '').replace(/^:|:$/g, '');
+        if (seen.has(sc)) return false;
+        seen.add(sc);
+        return true;
+      }).map((t) => ({
         shortcode: t.shortcode || (t.name || '').replace(/^:|:$/g, ''),
         url: domain ? proxyUrl(t.url || '', domain) || t.url || '' : t.url || '',
         static_url: domain ? proxyUrl(t.static_url || t.url || '', domain) || t.static_url || t.url || '' : t.static_url || t.url || '',

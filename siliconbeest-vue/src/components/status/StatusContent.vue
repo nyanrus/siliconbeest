@@ -16,12 +16,16 @@ const revealed = ref(false)
 /** Replace :shortcode: patterns with <img> tags using the emojis array */
 function emojify(html: string, emojis?: Array<{ shortcode: string; url: string; static_url: string }>): string {
   if (!emojis || emojis.length === 0) return html
+  // Deduplicate by shortcode
+  const seen = new Set<string>()
+  const unique = emojis.filter(e => { if (seen.has(e.shortcode)) return false; seen.add(e.shortcode); return true })
   let result = html
-  for (const emoji of emojis) {
-    const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
+  for (const emoji of unique) {
+    const escaped = emoji.shortcode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Match :shortcode: with optional zero-width spaces, but NOT inside HTML attributes (after =")
     result = result.replace(
-      pattern,
-      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" onerror="this.replaceWith(document.createTextNode(this.alt))" />`
+      new RegExp(`(?<!=")\\u200B?:${escaped}:\\u200B?`, 'g'),
+      `<img src="${emoji.url}" alt="${emoji.shortcode}" title="${emoji.shortcode}" class="custom-emoji" draggable="false" onerror="this.replaceWith(document.createTextNode(':${emoji.shortcode}:'))" />`
     )
   }
   return result

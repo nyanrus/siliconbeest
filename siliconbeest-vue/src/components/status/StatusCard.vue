@@ -78,11 +78,15 @@ const emojifiedDisplayName = computed(() => {
   const emojis = displayStatus.value.account.emojis
   if (!emojis || emojis.length === 0) return name
   name = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // Deduplicate by shortcode
+  const seen = new Set<string>()
   for (const emoji of emojis) {
-    const pattern = new RegExp(`:${emoji.shortcode}:`, 'g')
+    if (seen.has(emoji.shortcode)) continue
+    seen.add(emoji.shortcode)
+    const escaped = emoji.shortcode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     name = name.replace(
-      pattern,
-      `<img src="${emoji.url}" alt=":${emoji.shortcode}:" title=":${emoji.shortcode}:" class="custom-emoji" draggable="false" style="display:inline;height:1.2em;width:auto;vertical-align:middle;margin:0 0.05em;" />`
+      new RegExp(`\\u200B?:${escaped}:\\u200B?`, 'g'),
+      `<img src="${emoji.url}" alt="${emoji.shortcode}" title="${emoji.shortcode}" class="custom-emoji" draggable="false" style="display:inline;height:1.2em;width:auto;vertical-align:middle;margin:0 0.05em;" />`
     )
   }
   return name
