@@ -1,3 +1,4 @@
+import { lookupWebFinger } from '@fedify/webfinger';
 /**
  * WebFinger Resolution & Remote Actor Fetching
  *
@@ -69,40 +70,18 @@ export async function resolveWebFinger(
 		}
 	}
 
-	// Fetch WebFinger
-	const webfingerUrl = `https://${domain}/.well-known/webfinger?resource=${encodeURIComponent(resource)}`;
-
-	let response: Response;
+	// Fetch WebFinger using @fedify/webfinger
+	let data;
 	try {
-		response = await fetch(webfingerUrl, {
-			headers: {
-				Accept: 'application/jrd+json, application/json',
-				'User-Agent': 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
-			},
+		data = await lookupWebFinger(resource, {
+			userAgent: 'SiliconBeest/1.0 (ActivityPub; +https://github.com/SJang1/siliconbeest)',
 		});
-	} catch {
+	} catch (err) {
+		console.error(`[resolveWebFinger] Error looking up ${resource}:`, err);
 		return null;
 	}
 
-	if (!response.ok) {
-		return null;
-	}
-
-	let data: {
-		links?: Array<{
-			rel: string;
-			type?: string;
-			href?: string;
-		}>;
-	};
-
-	try {
-		data = await response.json();
-	} catch {
-		return null;
-	}
-
-	if (!data.links || !Array.isArray(data.links)) {
+	if (!data || !data.links || !Array.isArray(data.links)) {
 		return null;
 	}
 
