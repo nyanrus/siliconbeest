@@ -300,29 +300,26 @@ async function saveCategory(emoji: CustomEmoji) {
 
         <!-- Emoji list (collapsible) -->
         <div v-if="!collapsedCategories.has(catName)" class="border-t border-gray-100 dark:border-gray-700">
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0">
+          <div class="divide-y divide-gray-100 dark:divide-gray-700/50">
             <div
               v-for="emoji in emojisByCategory.get(catName)"
               :key="emoji.id"
-              class="p-3 flex items-center gap-3 border-b border-r border-gray-100 dark:border-gray-700/50"
+              class="px-4 py-3 flex items-center gap-4"
             >
               <img
                 :src="emoji.url"
                 :alt="emoji.shortcode"
-                class="w-10 h-10 object-contain flex-shrink-0"
+                class="w-8 h-8 object-contain flex-shrink-0 rounded"
               />
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  :{{ emoji.shortcode }}:
-                </p>
-
-                <!-- Category display / edit -->
+                <code class="text-sm text-gray-900 dark:text-white">:{{ emoji.shortcode }}:</code>
+                <!-- Category inline edit -->
                 <div v-if="editingId === emoji.id" class="mt-1 flex items-center gap-1">
                   <input
                     v-model="editCategory"
                     type="text"
                     list="emoji-categories-edit"
-                    class="flex-1 px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    class="w-40 px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     :placeholder="t('admin.emojiCategoryPlaceholder')"
                     @keyup.enter="saveCategory(emoji)"
                     @keyup.escape="cancelEditCategory"
@@ -330,38 +327,20 @@ async function saveCategory(emoji: CustomEmoji) {
                   <datalist id="emoji-categories-edit">
                     <option v-for="cat in existingCategories" :key="cat" :value="cat" />
                   </datalist>
-                  <button
-                    class="p-1 text-green-600 hover:text-green-700 dark:text-green-400"
-                    :disabled="editSaving"
-                    @click="saveCategory(emoji)"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
+                  <button class="p-1 text-green-600 hover:text-green-700" :disabled="editSaving" @click="saveCategory(emoji)">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                   </button>
-                  <button
-                    class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    @click="cancelEditCategory"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                  <button class="p-1 text-gray-400 hover:text-gray-600" @click="cancelEditCategory">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                 </div>
-                <button
-                  v-else
-                  class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 truncate transition-colors"
-                  @click="startEditCategory(emoji)"
-                >
+                <button v-else class="block mt-0.5 text-xs text-gray-400 hover:text-indigo-500 transition-colors" @click="startEditCategory(emoji)">
                   {{ emoji.category || t('admin.emojiCategoryPlaceholder') }}
                 </button>
-
-                <p v-if="!emoji.visible_in_picker" class="text-xs text-amber-500">
-                  {{ t('admin.emojiHidden') }}
-                </p>
               </div>
               <button
-                class="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0"
+                class="p-1.5 text-gray-400 hover:text-red-500 flex-shrink-0"
+                :title="t('common.delete')"
                 @click="deleteEmoji(emoji.id)"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

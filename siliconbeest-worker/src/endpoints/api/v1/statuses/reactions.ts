@@ -33,8 +33,8 @@ async function lookupCustomEmojiTag(
 	if (!emoji.startsWith(':') || !emoji.endsWith(':')) return null;
 	const shortcode = emoji.slice(1, -1);
 	const row = await db
-		.prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND domain IS NULL')
-		.bind(shortcode)
+		.prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND (domain IS NULL OR domain = ?)')
+		.bind(shortcode, domain)
 		.first<CustomEmojiRow>();
 	if (!row) return null;
 	const emojiUrl = row.image_key.startsWith('http')

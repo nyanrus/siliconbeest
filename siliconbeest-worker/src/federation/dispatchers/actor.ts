@@ -179,7 +179,7 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       if (shortcodes.length > 0) {
         const placeholders = shortcodes.map((_: string, i: number) => `?${i + 1}`).join(', ');
         const { results } = await env.DB.prepare(
-          `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND domain IS NULL`,
+          `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = '${domain}')`,
         )
           .bind(...shortcodes)
           .all();
