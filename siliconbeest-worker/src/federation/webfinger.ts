@@ -70,7 +70,6 @@ export async function resolveWebFinger(
 		}
 	}
 
-	// Fetch WebFinger using @fedify/webfinger
 	let data;
 	try {
 		data = await lookupWebFinger(resource, {
