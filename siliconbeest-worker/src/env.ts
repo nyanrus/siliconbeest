@@ -24,9 +24,14 @@ export interface Env {
   QUEUE_FEDERATION: Queue<QueueMessage>;
   QUEUE_INTERNAL: Queue<QueueMessage>;
   QUEUE_EMAIL: Queue<SendEmailMessage>;
+  // Dead-letter queues (producer bindings for inspection/re-drive)
+  QUEUE_INTERNAL_DLQ: Queue<QueueMessage>;
+  QUEUE_FEDERATION_DLQ: Queue<QueueMessage>;
 
   // Durable Objects
   STREAMING_DO: DurableObjectNamespace;
+  /** Circuit-breaker actors, one per remote domain. Key via idFromName(domain). */
+  REMOTE_SERVER_DO: DurableObjectNamespace;
 
   // Environment variables (wrangler.jsonc vars)
   INSTANCE_DOMAIN: string;

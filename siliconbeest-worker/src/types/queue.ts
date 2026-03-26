@@ -146,6 +146,39 @@ export interface SendEmailMessage {
 }
 
 // ============================================================
+// STAGED INBOX PROCESSING — Actor model pipeline messages
+// Each stage is independently retried by the queue supervisor.
+// ============================================================
+
+export interface IndexMentionsMessage {
+  type: 'index_mentions';
+  /** Status that contains the mentions */
+  statusId: string;
+  /** Account ID of the author (for notification sender) */
+  authorAccountId: string;
+  /** AP actor URIs of all mentioned actors */
+  mentionHrefs: string[];
+}
+
+export interface IndexHashtagsMessage {
+  type: 'index_hashtags';
+  /** Status that contains the hashtags */
+  statusId: string;
+  /** Lowercase tag names without leading # */
+  tagNames: string[];
+}
+
+export interface IndexEmojisMessage {
+  type: 'index_emojis';
+  /** Status that contains the emojis */
+  statusId: string;
+  /** Domain of the actor who sent the emojis (not the CDN domain) */
+  actorDomain: string;
+  /** Emojis to upsert */
+  emojis: Array<{ shortcode: string; url: string }>;
+}
+
+// ============================================================
 // DISCRIMINATED UNION
 // ============================================================
 
@@ -165,4 +198,22 @@ export type QueueMessage =
   | FetchPreviewCardMessage
   | ForwardActivityMessage
   | ImportItemMessage
-  | SendEmailMessage;
+  | SendEmailMessage
+  | IndexMentionsMessage
+  | IndexHashtagsMessage
+  | IndexEmojisMessage;
+
+// ============================================================
+// EXHAUSTIVE DISPATCH GUARD
+//
+// Use this in queue consumer switch statements.  TypeScript will
+// produce a compile error if any QueueMessage variant is missing
+// a case, mirroring Elixir's FunctionClauseError at compile time.
+//
+// Usage:
+//   default: assertExhaustive(message);
+// ============================================================
+
+export function assertExhaustive(x: never): never {
+  throw new Error(`Unhandled queue message type: ${(x as { type: string }).type}`);
+}

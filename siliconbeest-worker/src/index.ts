@@ -91,8 +91,9 @@ import proxyEndpoint from './endpoints/proxy';
 import apActor from './endpoints/activitypub/actor';
 import apInstanceActor from './endpoints/activitypub/instanceActor';
 
-// -- Durable Object export --
+// -- Durable Object exports --
 export { StreamingDO } from './durableObjects/streaming';
+export { RemoteServerActorDO } from './durableObjects/remoteServerActor';
 
 // ---------------------------------------------------------------------------
 // App

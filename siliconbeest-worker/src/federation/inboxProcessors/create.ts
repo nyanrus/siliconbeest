@@ -250,199 +250,51 @@ export async function processCreate(
 			.run();
 	}
 
-	// Process mentions from tags
+	// Extract tags once — used to build all three staged queue messages below
 	const tags: APTag[] = note.tag ?? [];
-	const mentionTags = tags.filter((t) => t.type === 'Mention');
 
-	for (const mention of mentionTags) {
-		if (!mention.href) continue;
+	// Collect mention hrefs for the index_mentions stage
+	const mentionHrefs = tags
+		.filter((t) => t.type === 'Mention' && t.href)
+		.map((t) => t.href as string);
 
-		// Check if this mention refers to a local account
-		const mentionedAccount = await env.DB.prepare(
-			`SELECT id FROM accounts WHERE uri = ?1 AND domain IS NULL LIMIT 1`,
-		)
-			.bind(mention.href)
-			.first<{ id: string }>();
+	// Collect hashtag names for the index_hashtags stage
+	const tagNames = tags
+		.filter((t) => t.type === 'Hashtag')
+		.map((t) => ((t.name as string) || '').replace(/^#/, '').toLowerCase())
+		.filter(Boolean);
 
-		if (mentionedAccount) {
-			// Insert mention record
-			const mentionId = generateUlid();
-			try {
-				await env.DB.prepare(
-					`INSERT INTO mentions (id, status_id, account_id, created_at)
-					 VALUES (?1, ?2, ?3, ?4)`,
-				)
-					.bind(mentionId, statusId, mentionedAccount.id, now)
-					.run();
-			} catch {
-				// duplicate mention, ignore
-			}
-
-			// Create notification for the mentioned user
-			await env.QUEUE_INTERNAL.send({
-				type: 'create_notification',
-				recipientAccountId: mentionedAccount.id,
-				senderAccountId: authorAccountId,
-				notificationType: 'mention',
-				statusId,
-			});
-		}
-	}
-
-	// Process hashtags from tags
-	const hashtagTags = tags.filter((t) => t.type === 'Hashtag');
-	for (const ht of hashtagTags) {
-		const tagName = ((ht.name as string) || '').replace(/^#/, '').toLowerCase();
-		if (!tagName) continue;
-		try {
-			const existing = await env.DB.prepare('SELECT id FROM tags WHERE name = ?1').bind(tagName).first<{ id: string }>();
-			let tagId: string;
-			if (existing) {
-				tagId = existing.id;
-				await env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
-			} else {
-				tagId = generateUlid();
-				await env.DB.prepare(
-					'INSERT INTO tags (id, name, display_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)',
-				).bind(tagId, tagName, tagName, now).run();
-			}
-			await env.DB.prepare('INSERT OR IGNORE INTO status_tags (status_id, tag_id) VALUES (?1, ?2)').bind(statusId, tagId).run();
-		} catch {
-			// ignore duplicates
-		}
-	}
-
-	// Process custom emojis from tags — store remote emojis for rendering
-	// Use the actor's server domain (not the CDN hostname from emoji URL)
+	// Collect emoji data for the index_emojis stage
 	const actorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
 	let actorServerDomain: string | null = null;
 	try { actorServerDomain = new URL(actorUri).hostname; } catch { /* skip */ }
 
-	const emojiTags = tags.filter((t) => t.type === 'Emoji');
-	const newEmojis: Array<{ shortcode: string; url: string; static_url: string; domain: string }> = [];
-	for (const et of emojiTags) {
-		const emojiName = ((et.name as string) || '').replace(/^:|:$/g, '');
-		const iconObj = (et as any).icon as { url?: string; mediaType?: string } | undefined;
-		const emojiUrl = iconObj?.url;
-		if (!emojiName || !emojiUrl) continue;
-		// Use actor's server domain, not CDN URL hostname
-		const emojiDomain = actorServerDomain;
-		if (!emojiDomain) continue;
-		try {
-			const result = await env.DB.prepare(
-				`INSERT INTO custom_emojis (id, shortcode, domain, image_key, visible_in_picker, created_at, updated_at)
-				 VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5)
-				 ON CONFLICT(shortcode, domain) DO UPDATE SET image_key = excluded.image_key, updated_at = excluded.updated_at`,
-			).bind(generateUlid(), emojiName, emojiDomain, emojiUrl, now).run();
-			if (result.meta.changes > 0) {
-				newEmojis.push({ shortcode: emojiName, url: emojiUrl, static_url: emojiUrl, domain: emojiDomain });
-			}
-		} catch {
-			// ignore
-		}
-	}
-
-	// Notify connected clients about new emojis via streaming
-	if (newEmojis.length > 0) {
-		try {
-			const emojiPayload = JSON.stringify(newEmojis);
-			// Broadcast to public stream so all clients can update their emoji cache
-			const doId = env.STREAMING_DO.idFromName('__public__');
-			const doStub = env.STREAMING_DO.get(doId);
-			await doStub.fetch('https://streaming/event', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					event: 'emoji_update',
-					payload: emojiPayload,
-					stream: ['public', 'public:local', 'user'],
-				}),
-			});
-		} catch {
-			// Streaming failure shouldn't block inbox processing
-		}
-	}
-
-	// Fan out to local followers' home timelines (skip DMs)
-	if (visibility !== 'direct') {
-		await env.QUEUE_INTERNAL.send({
-			type: 'timeline_fanout',
-			statusId,
-			accountId: authorAccountId,
+	const emojiEntries = tags
+		.filter((t) => t.type === 'Emoji')
+		.flatMap((et) => {
+			const shortcode = ((et.name as string) || '').replace(/^:|:$/g, '');
+			const url = ((et as any).icon as { url?: string } | undefined)?.url;
+			return shortcode && url ? [{ shortcode, url }] : [];
 		});
-	} else {
-		// For DMs, add to mentioned LOCAL users' home timelines
-		const now = new Date().toISOString();
-		const { results: localMentions } = await env.DB.prepare(
-			`SELECT m.account_id FROM mentions m
-			 JOIN accounts a ON a.id = m.account_id
-			 WHERE m.status_id = ?1 AND a.domain IS NULL`,
-		).bind(statusId).all();
-		if (localMentions && localMentions.length > 0) {
-			const stmts = localMentions.map((m: any) =>
-				env.DB.prepare(
-					'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-				).bind(statusId, m.account_id as string, now),
-			);
-			await env.DB.batch(stmts);
 
-			// Send streaming event for DM to each mentioned local user
-			try {
-				const dmStatusRow = await env.DB.prepare(
-					`SELECT s.*, a.username AS a_username, a.domain AS a_domain, a.display_name AS a_display_name,
-					        a.note AS a_note, a.uri AS a_uri, a.url AS a_url, a.avatar_url AS a_avatar_url,
-					        a.avatar_static_url AS a_avatar_static_url, a.header_url AS a_header_url,
-					        a.header_static_url AS a_header_static_url, a.locked AS a_locked, a.bot AS a_bot,
-					        a.discoverable AS a_discoverable, a.followers_count AS a_followers_count,
-					        a.following_count AS a_following_count, a.statuses_count AS a_statuses_count,
-					        a.created_at AS a_created_at, a.emoji_tags AS a_emoji_tags
-					 FROM statuses s JOIN accounts a ON a.id = s.account_id WHERE s.id = ?1`,
-				).bind(statusId).first();
+	// Enqueue all secondary work as independent, supervised pipeline stages.
+	// Each message is retried independently — a hashtag indexing failure does
+	// not prevent mentions from being processed (Elixir-style isolation).
+	await Promise.all([
+		mentionHrefs.length > 0
+			? env.QUEUE_INTERNAL.send({ type: 'index_mentions', statusId, authorAccountId, mentionHrefs })
+			: Promise.resolve(),
 
-				if (dmStatusRow) {
-					const acct = (dmStatusRow as any).a_domain
-						? `${(dmStatusRow as any).a_username}@${(dmStatusRow as any).a_domain}`
-						: (dmStatusRow as any).a_username;
-					const dmPayload = JSON.stringify({
-						id: statusId, uri: (dmStatusRow as any).uri, created_at: (dmStatusRow as any).created_at,
-						content: (dmStatusRow as any).content, visibility: 'direct',
-						sensitive: !!(dmStatusRow as any).sensitive, spoiler_text: (dmStatusRow as any).content_warning || '',
-						language: (dmStatusRow as any).language, url: (dmStatusRow as any).url,
-						in_reply_to_id: (dmStatusRow as any).in_reply_to_id, in_reply_to_account_id: (dmStatusRow as any).in_reply_to_account_id,
-						reblogs_count: 0, favourites_count: 0, replies_count: 0, edited_at: null,
-						media_attachments: [], mentions: [], tags: [], emojis: [],
-						reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
-						account: {
-							id: authorAccountId, username: (dmStatusRow as any).a_username, acct,
-							display_name: (dmStatusRow as any).a_display_name || '',
-							locked: !!((dmStatusRow as any).a_locked), bot: !!((dmStatusRow as any).a_bot),
-							discoverable: !!((dmStatusRow as any).a_discoverable), group: false,
-							created_at: (dmStatusRow as any).a_created_at, note: (dmStatusRow as any).a_note || '',
-							url: (dmStatusRow as any).a_url || '', uri: (dmStatusRow as any).a_uri || '',
-							avatar: (dmStatusRow as any).a_avatar_url || '', avatar_static: (dmStatusRow as any).a_avatar_static_url || (dmStatusRow as any).a_avatar_url || '',
-							header: (dmStatusRow as any).a_header_url || '', header_static: (dmStatusRow as any).a_header_static_url || (dmStatusRow as any).a_header_url || '',
-							followers_count: (dmStatusRow as any).a_followers_count || 0, following_count: (dmStatusRow as any).a_following_count || 0,
-							statuses_count: (dmStatusRow as any).a_statuses_count || 0, last_status_at: null,
-							emojis: [], fields: [],
-						},
-					});
+		tagNames.length > 0
+			? env.QUEUE_INTERNAL.send({ type: 'index_hashtags', statusId, tagNames })
+			: Promise.resolve(),
 
-					for (const m of localMentions as any[]) {
-						const userRow = await env.DB.prepare('SELECT id FROM users WHERE account_id = ?1 LIMIT 1').bind(m.account_id).first();
-						if (userRow) {
-							try {
-								const doId = env.STREAMING_DO.idFromName(userRow.id as string);
-								const stub = env.STREAMING_DO.get(doId);
-								await stub.fetch('https://streaming/event', {
-									method: 'POST',
-									headers: { 'Content-Type': 'application/json' },
-									body: JSON.stringify({ event: 'update', payload: dmPayload, stream: ['user', 'direct'] }),
-								});
-							} catch { /* streaming failure shouldn't block */ }
-						}
-					}
-				}
-			} catch { /* streaming failure shouldn't block inbox processing */ }
-		}
-	}
+		actorServerDomain && emojiEntries.length > 0
+			? env.QUEUE_INTERNAL.send({ type: 'index_emojis', statusId, actorDomain: actorServerDomain, emojis: emojiEntries })
+			: Promise.resolve(),
+
+		// timeline_fanout handles both public/private and direct visibility;
+		// the consumer is responsible for the DM home-timeline insertion + streaming.
+		env.QUEUE_INTERNAL.send({ type: 'timeline_fanout', statusId, accountId: authorAccountId }),
+	]);
 }
