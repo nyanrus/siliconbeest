@@ -51,7 +51,15 @@ class CloudflareMessageQueue implements MessageQueue {
     message: any,
     options?: any,
   ): Promise<void> {
-    const promise = this.inner.enqueue(message, options);
+    console.log(`[queue-wrapper] enqueue called, type=${message?.type}, keys=${Object.keys(message || {}).join(',')}`);
+    const promise = this.inner.enqueue(message, options)
+      .then(() => {
+        console.log(`[queue-wrapper] enqueue succeeded, type=${message?.type}`);
+      })
+      .catch((err: unknown) => {
+        console.error(`[queue-wrapper] enqueue FAILED, type=${message?.type}:`, err);
+        throw err;
+      });
     // Register with waitUntil so Cloudflare doesn't kill the Worker
     // before the queue.send() completes (Fedify doesn't await fanout enqueue)
     if (this.waitUntilFn) {

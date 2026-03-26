@@ -130,10 +130,24 @@ app.get('/:id', authRequired, async (c) => {
     }
   }
 
-  return c.json(serializeNotification(notifRow, {
+  const notif = serializeNotification(notifRow, {
     account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
     status: statusObj,
-  }));
+  });
+  // Attach custom emoji URL for emoji_reaction notifications
+  if (notifRow.type === 'emoji_reaction' && notifRow.emoji?.startsWith(':') && notifRow.emoji?.endsWith(':')) {
+    const sc = notifRow.emoji.slice(1, -1);
+    const er = await c.env.DB.prepare(
+      'SELECT domain, image_key FROM custom_emojis WHERE shortcode = ?1 LIMIT 1',
+    ).bind(sc).first<{ domain: string | null; image_key: string }>();
+    if (er) {
+      const isLocal = !er.domain || er.domain === c.env.INSTANCE_DOMAIN;
+      (notif as any).emoji_url = isLocal
+        ? `https://${c.env.INSTANCE_DOMAIN}/media/${er.image_key}`
+        : `https://${c.env.INSTANCE_DOMAIN}/proxy?url=${encodeURIComponent(er.image_key)}`;
+    }
+  }
+  return c.json(notif);
 });
 
 export default app;

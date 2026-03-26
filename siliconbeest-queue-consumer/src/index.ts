@@ -9,10 +9,32 @@
  * are detected and routed to federation.processQueuedTask().
  */
 
+import { configure, type LogRecord } from '@logtape/logtape';
 import type { Env } from './env';
 import type { QueueMessage } from './shared/types/queue';
 import { createFed } from './fedify';
 import { setupActorDispatcher } from './dispatchers';
+
+function plainConsoleSink(record: LogRecord): void {
+  const level = record.level.toUpperCase().padEnd(5);
+  const cat = record.category.join('·');
+  const msg = record.message.map(m => typeof m === 'string' ? m : JSON.stringify(m)).join('');
+  const line = `[${level}] ${cat}: ${msg}`;
+  if (record.level === 'error' || record.level === 'fatal') console.error(line);
+  else if (record.level === 'warning') console.warn(line);
+  else console.log(line);
+}
+
+await configure({
+  sinks: { console: plainConsoleSink },
+  loggers: [
+    { category: 'fedify', sinks: ['console'], lowestLevel: 'warning' },
+    { category: ['fedify', 'federation', 'fanout'], sinks: ['console'], lowestLevel: 'debug' },
+    { category: ['fedify', 'federation', 'outbox'], sinks: ['console'], lowestLevel: 'debug' },
+    { category: ['fedify', 'federation', 'queue'], sinks: ['console'], lowestLevel: 'debug' },
+    { category: ['fedify', 'federation', 'inbox'], sinks: ['console'], lowestLevel: 'debug' },
+  ],
+});
 import { WorkersMessageQueue } from '@fedify/cfworkers';
 
 // Consumer-local inbox listeners and collection dispatchers.

@@ -175,6 +175,30 @@ app.get('/', authRequired, async (c) => {
     notifDomainTexts.get(dk)!.push((row.a_display_name as string) || '', (row.a_note as string) || '');
   }
 
+  // Batch-fetch custom emoji URLs for emoji_reaction notifications
+  const emojiShortcodes = new Set<string>();
+  for (const row of rows as any[]) {
+    const emoji = row.emoji as string | null;
+    if (row.type === 'emoji_reaction' && emoji?.startsWith(':') && emoji?.endsWith(':')) {
+      emojiShortcodes.add(emoji.slice(1, -1));
+    }
+  }
+  const emojiUrlMap = new Map<string, string>();
+  if (emojiShortcodes.size > 0) {
+    const placeholders = [...emojiShortcodes].map(() => '?').join(',');
+    const emojiRows = await c.env.DB.prepare(
+      `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders})`,
+    ).bind(...emojiShortcodes).all<{ shortcode: string; domain: string | null; image_key: string }>();
+    const instanceDomain = c.env.INSTANCE_DOMAIN;
+    for (const er of emojiRows.results) {
+      const isLocal = !er.domain || er.domain === instanceDomain;
+      const url = isLocal
+        ? `https://${instanceDomain}/media/${er.image_key}`
+        : `https://${instanceDomain}/proxy?url=${encodeURIComponent(er.image_key)}`;
+      emojiUrlMap.set(er.shortcode, url);
+    }
+  }
+
   const notifications = rows.map((row: any) => {
     const accountRow: AccountRow = {
       id: row.a_id, username: row.a_username, domain: row.a_domain,
@@ -196,11 +220,18 @@ app.get('/', authRequired, async (c) => {
 
     const statusObj = row.status_id ? statusMap.get(row.status_id) ?? null : null;
 
-    // In lazy-load model, account emojis are not pre-fetched - they render from avatars/display names on-demand
-    return serializeNotification(notifRow, {
+    const notif = serializeNotification(notifRow, {
       account: serializeAccount(accountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }),
       status: statusObj,
     });
+    // Attach custom emoji URL for emoji_reaction notifications
+    const emoji = row.emoji as string | null;
+    if (notifRow.type === 'emoji_reaction' && emoji?.startsWith(':') && emoji?.endsWith(':')) {
+      const sc = emoji.slice(1, -1);
+      const url = emojiUrlMap.get(sc);
+      if (url) (notif as any).emoji_url = url;
+    }
+    return notif;
   });
 
   if (pag.minId) notifications.reverse();

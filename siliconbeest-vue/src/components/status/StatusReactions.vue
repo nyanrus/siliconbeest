@@ -162,11 +162,11 @@ function getShortcode(name: string): string {
           v-if="isCustomEmoji(reaction)"
           :src="reaction.url!"
           :alt="getShortcode(reaction.name)"
-          class="h-4 w-4 object-contain"
+          class="h-5 w-5 object-contain"
           loading="lazy"
         />
         <!-- 유니코드 이모지 -->
-        <span v-else class="text-sm leading-none">{{ reaction.name }}</span>
+        <span v-else class="text-base leading-none">{{ reaction.name }}</span>
         <!-- 카운트 -->
         <span class="tabular-nums">{{ reaction.count }}</span>
       </button>

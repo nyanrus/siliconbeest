@@ -14,7 +14,7 @@ import { authRequired, authOptional } from '../../../../middleware/auth';
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { sendToRecipient } from '../../../../federation/helpers/send';
+import { sendToRecipient, sendToFollowers } from '../../../../federation/helpers/send';
 import { Like, Undo, Emoji as APEmoji, Image as APImage } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../../../utils/ulid';
 import type { CustomEmojiRow } from '../../../../types/db';
@@ -88,30 +88,33 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 		// UNIQUE constraint — duplicate reaction, ignore
 	}
 
-	// If status author is remote, send Like activity with content (emoji reaction)
+	// Federate the emoji reaction
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
+	const username = c.get('currentAccount')?.username;
+	const actorUri = `https://${domain}/users/${username}`;
+	const statusUri = statusRow.uri as string;
+	const tags = emojiLookup ? [emojiLookup.tag] : [];
+	const like = new Like({
+		id: new URL(`https://${domain}/activities/${generateUlid()}`),
+		actor: new URL(actorUri),
+		object: new URL(statusUri),
+		content: emoji,
+		tags,
+	});
+	const fed = c.get('federation');
 	if (authorDomain) {
+		// Remote author: send directly to their inbox
 		const authorAccountId = statusRow.account_id as string;
 		const authorAccount = await c.env.DB.prepare(
 			'SELECT uri FROM accounts WHERE id = ?',
 		).bind(authorAccountId).first<{ uri: string }>();
 		if (authorAccount) {
-			const username = c.get('currentAccount')?.username;
-			const actorUri = `https://${domain}/users/${username}`;
-			const statusUri = statusRow.uri as string;
-			const tags = emojiLookup ? [emojiLookup.tag] : [];
-			const like = new Like({
-				id: new URL(`https://${domain}/activities/${generateUlid()}`),
-				actor: new URL(actorUri),
-				object: new URL(statusUri),
-				content: emoji,
-				tags,
-			});
-			const fed = c.get('federation');
 			await sendToRecipient(fed, c.env, username!, authorAccount.uri, like);
 		}
 	}
+	// Always fan out to followers (so remote followers see the reaction)
+	await sendToFollowers(fed, c.env, username!, like);
 
 	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
 	return c.json(status);
@@ -137,35 +140,39 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		.bind(currentAccountId, statusId, emoji)
 		.run();
 
-	// If status author is remote, send Undo(Like) for emoji reaction
+	// Federate Undo(Like) for emoji reaction removal
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
-	if (authorDomain && (deleted.meta?.changes ?? 0) > 0) {
-		const authorAccountId = statusRow.account_id as string;
-		const authorAccount = await c.env.DB.prepare(
-			'SELECT uri FROM accounts WHERE id = ?',
-		).bind(authorAccountId).first<{ uri: string }>();
-		if (authorAccount) {
-			const username = c.get('currentAccount')?.username;
-			const actorUri = `https://${domain}/users/${username}`;
-			const statusUri = statusRow.uri as string;
-			const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
-			const tags = emojiLookup ? [emojiLookup.tag] : [];
-			const originalLike = new Like({
-				id: new URL(`https://${domain}/activities/${generateUlid()}`),
-				actor: new URL(actorUri),
-				object: new URL(statusUri),
-				content: emoji,
-				tags,
-			});
-			const undo = new Undo({
-				id: new URL(`https://${domain}/activities/${generateUlid()}`),
-				actor: new URL(actorUri),
-				object: originalLike,
-			});
-			const fed = c.get('federation');
-			await sendToRecipient(fed, c.env, username!, authorAccount.uri, undo);
+	if ((deleted.meta?.changes ?? 0) > 0) {
+		const username = c.get('currentAccount')?.username;
+		const actorUri = `https://${domain}/users/${username}`;
+		const statusUri = statusRow.uri as string;
+		const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
+		const tags = emojiLookup ? [emojiLookup.tag] : [];
+		const originalLike = new Like({
+			id: new URL(`https://${domain}/activities/${generateUlid()}`),
+			actor: new URL(actorUri),
+			object: new URL(statusUri),
+			content: emoji,
+			tags,
+		});
+		const undo = new Undo({
+			id: new URL(`https://${domain}/activities/${generateUlid()}`),
+			actor: new URL(actorUri),
+			object: originalLike,
+		});
+		const fed = c.get('federation');
+		if (authorDomain) {
+			const authorAccountId = statusRow.account_id as string;
+			const authorAccount = await c.env.DB.prepare(
+				'SELECT uri FROM accounts WHERE id = ?',
+			).bind(authorAccountId).first<{ uri: string }>();
+			if (authorAccount) {
+				await sendToRecipient(fed, c.env, username!, authorAccount.uri, undo);
+			}
 		}
+		// Always fan out to followers
+		await sendToFollowers(fed, c.env, username!, undo);
 	}
 
 	const status = await serializeStatusEnriched(statusRow, c.env.DB, domain, currentAccountId, c.env.CACHE);
