@@ -27,7 +27,7 @@ import type { Link as WebFingerLink } from '@fedify/webfinger';
 import type { FedifyContextData } from '../fedify';
 import type { AccountRow, ActorKeyRow, CustomEmojiRow } from '../../types/db';
 import { parsePemToBuffer as parsePemKey } from '../helpers/key-utils';
-import { encodeEd25519PublicKeyMultibase, base64UrlToBytes } from '../../utils/crypto';
+import { encodeEd25519PublicKeyMultibase, base64UrlToBytes, generateEd25519KeyPair } from '../../utils/crypto';
 
 /** Profile metadata field as stored in accounts.fields JSON column. */
 interface ProfileField {
@@ -201,10 +201,24 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       // --- RSA public key for publicKey field ---
       const rsaPubCryptoKey = await importRsaPublicKey(actorKey.public_key);
 
-      // --- Ed25519 assertionMethod (optional) ---
+      // --- Ed25519 assertionMethod (generate if missing) ---
+      let ed25519PubBase64 = actorKey.ed25519_public_key as string | null;
+      if (!ed25519PubBase64) {
+        // Lazy-generate Ed25519 key pair on first actor fetch
+        try {
+          const generated = await generateEd25519KeyPair();
+          await env.DB.prepare(
+            'UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE account_id = ?3',
+          ).bind(generated.publicKey, generated.privateKey, account.id).run();
+          ed25519PubBase64 = generated.publicKey;
+          console.log(`[actor] Generated Ed25519 key for ${account.username}`);
+        } catch (e) {
+          console.error(`[actor] Failed to generate Ed25519 key:`, e);
+        }
+      }
       let assertionMethod: Multikey | undefined;
-      if (actorKey.ed25519_public_key) {
-        const ed25519PubCryptoKey = await importEd25519Pub(actorKey.ed25519_public_key);
+      if (ed25519PubBase64) {
+        const ed25519PubCryptoKey = await importEd25519Pub(ed25519PubBase64);
         assertionMethod = new Multikey({
           id: new URL(`${actorUri}#ed25519-key`),
           controller: new URL(actorUri),
@@ -300,12 +314,26 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
       const rsaPrivateKey = await importRsaPrivateKey(actorKey.private_key);
       keyPairs.push({ publicKey: rsaPublicKey, privateKey: rsaPrivateKey });
 
-      // Ed25519 key pair (optional)
-      if (actorKey.ed25519_public_key && actorKey.ed25519_private_key) {
-        const ed25519PublicKey = await importEd25519Pub(actorKey.ed25519_public_key);
-        const ed25519PrivateKey = await importEd25519Priv(actorKey.ed25519_private_key);
-        keyPairs.push({ publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey });
+      // Ed25519 key pair — generate on the fly if missing
+      let ed25519Pub = actorKey.ed25519_public_key;
+      let ed25519Priv = actorKey.ed25519_private_key;
+
+      if (!ed25519Pub || !ed25519Priv) {
+        const generated = await generateEd25519KeyPair();
+        ed25519Pub = generated.publicKey;
+        ed25519Priv = generated.privateKey;
+
+        // Persist the newly generated keys back to the database
+        await env.DB.prepare(
+          `UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE id = ?3`,
+        )
+          .bind(ed25519Pub, ed25519Priv, actorKey.id)
+          .run();
       }
+
+      const ed25519PublicKey = await importEd25519Pub(ed25519Pub);
+      const ed25519PrivateKey = await importEd25519Priv(ed25519Priv);
+      keyPairs.push({ publicKey: ed25519PublicKey, privateKey: ed25519PrivateKey });
 
       return keyPairs;
     });

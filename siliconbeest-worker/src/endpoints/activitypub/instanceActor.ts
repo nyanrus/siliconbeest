@@ -9,7 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
 import { generateUlid } from '../../utils/ulid';
-import { encodeEd25519PublicKeyMultibase } from '../../utils/crypto';
+import { encodeEd25519PublicKeyMultibase, generateEd25519KeyPair } from '../../utils/crypto';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -92,6 +92,20 @@ app.get('/', async (c) => {
 			key_id: keyId,
 			ed25519_public_key: null,
 		};
+	}
+
+	// Lazy-generate Ed25519 key if missing
+	if (!actorKey.ed25519_public_key) {
+		try {
+			const ed25519 = await generateEd25519KeyPair();
+			await c.env.DB.prepare(
+				'UPDATE actor_keys SET ed25519_public_key = ?1, ed25519_private_key = ?2 WHERE account_id = ?3',
+			).bind(ed25519.publicKey, ed25519.privateKey, actorKey.id).run();
+			actorKey.ed25519_public_key = ed25519.publicKey;
+			console.log('[instanceActor] Generated Ed25519 key for instance actor');
+		} catch (e) {
+			console.error('[instanceActor] Ed25519 generation failed:', e);
+		}
 	}
 
 	const actorId = `https://${domain}/actor`;
