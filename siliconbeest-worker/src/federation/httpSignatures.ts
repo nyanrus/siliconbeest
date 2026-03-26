@@ -135,13 +135,24 @@ export async function verifySignature(
 		});
 
 		const result = await fedifyVerifyRequest(clonedReq, {
-			async documentLoader(url) {
-				return { document: { id: url, type: 'Key', publicKeyPem }, documentUrl: url, contextUrl: null };
-			}
+			documentLoader: async (url) => {
+				return {
+					document: {
+						"@context": "https://w3id.org/security/v1",
+						id: url,
+						type: 'Key',
+						publicKeyPem
+					},
+					documentUrl: url,
+					contextUrl: null
+				};
+			},
+			timeWindow: false
 		});
 
 		return result !== null;
 	} catch (err) {
+		console.error('[verifySignature]', err);
 		return false;
 	}
 }
@@ -178,13 +189,24 @@ export async function verifySignatureRFC9421(
 		});
 
 		const result = await fedifyVerifyRequest(clonedReq, {
-			async documentLoader(url) {
-				return { document: { id: url, type: 'Key', publicKeyPem }, documentUrl: url, contextUrl: null };
-			}
+			documentLoader: async (url) => {
+				return {
+					document: {
+						"@context": "https://w3id.org/security/v1",
+						id: url,
+						type: 'Key',
+						publicKeyPem
+					},
+					documentUrl: url,
+					contextUrl: null
+				};
+			},
+			timeWindow: false
 		});
 
 		return result !== null;
 	} catch (err) {
+		console.error('[verifySignatureRFC9421]', err);
 		return false;
 	}
 }

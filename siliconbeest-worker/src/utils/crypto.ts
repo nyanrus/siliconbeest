@@ -140,7 +140,7 @@ export async function importEd25519PrivateKey(base64url: string): Promise<Crypto
 		'pkcs8',
 		keyData,
 		'Ed25519',
-		false,
+		true,
 		['sign'],
 	);
 }
@@ -154,7 +154,7 @@ export async function importEd25519PublicKey(base64url: string): Promise<CryptoK
 		'raw',
 		keyData,
 		'Ed25519',
-		false,
+		true,
 		['verify'],
 	);
 }
