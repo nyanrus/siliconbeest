@@ -17,7 +17,6 @@
 import type { Env } from '../env';
 import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
-import { addLDSignature } from './ldSignatures';
 
 // ============================================================
 // PEM / CRYPTO HELPERS
@@ -286,14 +285,8 @@ export async function handleDeliverActivity(
     }
   }
 
-  // Attach Linked Data Signature (RsaSignature2017) AFTER integrity proof.
-  // The LD signature hashes the document without the `signature` field but
-  // WITH the `proof` and updated `@context`, so verifiers see consistent data.
-  try {
-    activityToDeliver = await addLDSignature(activityToDeliver, keyRow.private_key, keyId);
-  } catch (e) {
-    console.warn(`Failed to create LD signature for activity, delivering without:`, e);
-  }
+  // Linked Data Signatures (LDS) are an older standard and no longer needed.
+  // We rely on Object Integrity Proofs (FEP-8b32) and HTTP Signatures.
 
   const body = JSON.stringify(activityToDeliver);
   const targetDomain = new URL(inboxUrl).hostname;
