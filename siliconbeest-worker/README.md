@@ -1,6 +1,6 @@
 # SiliconBeest Worker
 
-The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudflare Workers, it implements the Mastodon API (v1 and v2) and the ActivityPub server-to-server protocol.
+The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudflare Workers, it implements the Mastodon API (v1 and v2) and the ActivityPub server-to-server protocol. Federation is powered by [Fedify](https://fedify.dev/) v2.1.0 with [`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers) for Cloudflare Workers KV/Queue integration.
 
 ---
 
@@ -35,12 +35,12 @@ The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudfl
 
 ### Well-Known / Discovery
 
-| Method | Path                         | Description               |
-| ------ | ---------------------------- | ------------------------- |
-| GET    | `/.well-known/webfinger`     | WebFinger resource lookup |
-| GET    | `/.well-known/nodeinfo`      | NodeInfo discovery        |
-| GET    | `/.well-known/host-meta`     | Host metadata (XML)       |
-| GET    | `/nodeinfo/2.0`              | NodeInfo document         |
+| Method | Path                         | Description               | Handler |
+| ------ | ---------------------------- | ------------------------- | ------- |
+| GET    | `/.well-known/webfinger`     | WebFinger resource lookup | Fedify  |
+| GET    | `/.well-known/nodeinfo`      | NodeInfo discovery        | Fedify  |
+| GET    | `/.well-known/host-meta`     | Host metadata (XML)       | Custom  |
+| GET    | `/nodeinfo/2.0`              | NodeInfo document         | Fedify  |
 
 ### OAuth
 
@@ -285,18 +285,34 @@ The API server for SiliconBeest. Built with [Hono](https://hono.dev/) on Cloudfl
 
 ---
 
-## Federation Features
+## Federation Features (Fedify + Custom Code)
 
-- **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing for all outbound requests
-- **RFC 9421 double-knock** -- modern HTTP Message Signatures for delivery
+The federation layer uses [Fedify](https://fedify.dev/) v2.1.0 for core ActivityPub protocol handling, with custom code for application-specific logic.
+
+### Handled by Fedify
+
+- **HTTP Signatures** (draft-cavage-http-signatures-12) -- RSA-SHA256 signing and verification
+- **RFC 9421 double-knock** -- modern HTTP Message Signatures with automatic fallback
+- **Object Integrity Proofs** (FEP-8b32) -- Ed25519 `ed25519-jcs-2022` cryptosuite
+- **WebFinger** -- `/.well-known/webfinger` endpoint serving and remote `acct:` URI resolution
+- **NodeInfo** -- `/.well-known/nodeinfo` and `/nodeinfo/2.0` endpoint serving
+- **Activity delivery** -- outbound delivery with retry and queue integration via `@fedify/cfworkers`
+
+### Custom Application Code
+
+- **Inbox processors** -- activity-specific handlers (`src/federation/inboxProcessors/`) for Create, Update, Delete, Follow, Accept, Reject, Like, Announce, Undo, Block, Move, Flag, EmojiReact
 - **Linked Data Signatures** -- signing and verification for relay forwarding
-- **Object Integrity Proofs** (FEP-8b32) -- Ed25519 `ed25519-jcs-2022` cryptosuite, verification on inbound
 - **Activity Forwarding** -- forwards activities to followers with original signature preservation
 - **Collection Pagination** -- `OrderedCollection` / `OrderedCollectionPage` with `next`/`prev` links
 - **Activity Idempotency** -- deduplication of incoming activities by ID
-- **WebFinger resolution** -- resolves `acct:` URIs for remote account discovery
+- **Actor/Note serialization** -- AS2 JSON-LD serialization for actors and notes
 - **Instance Actor** -- `/actor` endpoint with its own RSA keypair for relay communication
 - **Misskey extensions** -- `EmojiReact`, `_misskey_content`, `_misskey_quote`, quote posts
+
+### Key Dependencies
+
+- [`fedify`](https://fedify.dev/) v2.1.0 -- ActivityPub server framework
+- [`@fedify/cfworkers`](https://github.com/dahlia/fedify-cfworkers) -- Cloudflare Workers adapter providing KV-based cache store and Queue-based message dispatcher
 
 See [FEDERATION.md](../FEDERATION.md) for the full federation specification.
 

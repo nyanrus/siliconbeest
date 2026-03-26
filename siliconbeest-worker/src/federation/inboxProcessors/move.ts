@@ -12,8 +12,10 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
-import { fetchRemoteActor } from '../webfinger';
-import { buildFollowActivity } from '../activityBuilder';
+import { buildFollowActivity } from '../helpers/build-activity';
+import { createFed } from '../fedify';
+import { getFedifyContext } from '../helpers/send';
+import { isActor } from '@fedify/fedify/vocab';
 import { generateUlid } from '../../utils/ulid';
 
 export async function processMove(
@@ -39,15 +41,17 @@ export async function processMove(
 	}
 
 	// ── Bidirectional verification ──
-	// Fetch the new account's actor document and verify alsoKnownAs
-	const newActorDoc = await fetchRemoteActor(newAccountUri, env.CACHE, env.DB, env.INSTANCE_DOMAIN);
-	if (!newActorDoc) {
+	// Fetch the new account's actor document via Fedify and verify alsoKnownAs
+	const fed = createFed(env);
+	const ctx = getFedifyContext(fed, env);
+	const newActorObj = await ctx.lookupObject(newAccountUri);
+	if (!newActorObj || !isActor(newActorObj) || !newActorObj.id) {
 		console.warn(`[move] Could not fetch new account actor document: ${newAccountUri}`);
 		return;
 	}
 
-	const alsoKnownAs: string[] = Array.isArray(newActorDoc.alsoKnownAs)
-		? newActorDoc.alsoKnownAs
+	const alsoKnownAs: string[] = newActorObj.aliasIds
+		? Array.from(newActorObj.aliasIds).map((u: URL) => u.href)
 		: [];
 
 	if (!alsoKnownAs.includes(oldAccountUri)) {
@@ -120,10 +124,10 @@ export async function processMove(
 		if (newActorAccount && localFollowers) {
 			const newInbox = newActorAccount.inbox_url || newActorAccount.shared_inbox_url || `https://${newActorAccount.domain}/inbox`;
 			for (const follower of localFollowers) {
-				const followActivity = buildFollowActivity(follower.uri, newActorAccount.uri);
+				const followJson = await buildFollowActivity(follower.uri, newActorAccount.uri);
 				await env.QUEUE_FEDERATION.send({
 					type: 'deliver_activity',
-					activity: followActivity,
+					activity: JSON.parse(followJson),
 					inboxUrl: newInbox,
 					actorAccountId: follower.id,
 				});

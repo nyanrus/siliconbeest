@@ -16,7 +16,7 @@ describe('NodeInfo', () => {
   // /.well-known/nodeinfo
   // -------------------------------------------------------------------
   describe('GET /.well-known/nodeinfo', () => {
-    it('returns links array with nodeinfo 2.1 and 2.0 endpoints', async () => {
+    it('returns links array with at least nodeinfo 2.1 endpoint', async () => {
       const res = await SELF.fetch(`${BASE}/.well-known/nodeinfo`);
 
       expect(res.status).toBe(200);
@@ -24,19 +24,13 @@ describe('NodeInfo', () => {
 
       expect(body.links).toBeDefined();
       expect(Array.isArray(body.links)).toBe(true);
-      expect(body.links.length).toBeGreaterThanOrEqual(2);
+      expect(body.links.length).toBeGreaterThanOrEqual(1);
 
       const link21 = body.links.find(
         (l: any) => l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1',
       );
       expect(link21).toBeDefined();
       expect(link21.href).toBe(`https://${DOMAIN}/nodeinfo/2.1`);
-
-      const link20 = body.links.find(
-        (l: any) => l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-      );
-      expect(link20).toBeDefined();
-      expect(link20.href).toBe(`https://${DOMAIN}/nodeinfo/2.0`);
     });
   });
 

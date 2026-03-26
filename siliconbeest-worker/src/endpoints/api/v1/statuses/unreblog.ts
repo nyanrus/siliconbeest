@@ -3,8 +3,9 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { buildAnnounceActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
-import { enqueueFanout } from '../../../../federation/deliveryManager';
+import { sendToFollowers } from '../../../../federation/helpers/send';
+import { Announce, Undo } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -37,16 +38,28 @@ app.post('/:id/unreblog', authRequired, async (c) => {
   if (reblog && row.account_domain) {
     try {
       const currentAccount = await c.env.DB.prepare(
-        'SELECT uri FROM accounts WHERE id = ?1',
+        'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
         const statusUri = row.uri as string;
         const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
         const followersUri = `${actorUri}/followers`;
-        const announceActivity = buildAnnounceActivity(actorUri, statusUri, [AS_PUBLIC], [followersUri]);
-        const activity = buildUndoActivity(actorUri, announceActivity);
-        await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentAccountId);
+        const originalAnnounce = new Announce({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(statusUri),
+          published: new Date(),
+          tos: [new URL(AS_PUBLIC)],
+          ccs: [new URL(followersUri)],
+        });
+        const undo = new Undo({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: originalAnnounce,
+        });
+        const fed = c.get('federation');
+        await sendToFollowers(fed, c.env, currentAccount.username as string, undo);
       }
     } catch (e) {
       console.error('Federation delivery failed for unreblog:', e);

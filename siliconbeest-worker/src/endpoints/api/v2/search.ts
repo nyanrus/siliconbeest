@@ -3,8 +3,9 @@ import type { Env, AppVariables } from '../../../env';
 import { authOptional } from '../../../middleware/auth';
 import { serializeAccount, serializeStatus, serializeTag } from '../../../utils/mastodonSerializer';
 import { enrichStatuses } from '../../../utils/statusEnrichment';
-import { resolveWebFinger, fetchRemoteActor } from '../../../federation/webfinger';
 import { generateUlid } from '../../../utils/ulid';
+import { getFedifyContext } from '../../../federation/helpers/send';
+import { isActor } from '@fedify/fedify/vocab';
 import type { AccountRow, StatusRow, TagRow } from '../../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -49,13 +50,34 @@ app.get('/', authOptional, async (c) => {
     const looksLikeAcct = /^@?[^@\s]+@[^@\s]+\.[^@\s]+$/.test(q);
     console.log(`[search] resolve=${resolve}, looksLikeAcct=${looksLikeAcct}, q="${q}"`);
     if (resolve && looksLikeAcct) {
-      const webfingerResult = await resolveWebFinger(q, c.env.CACHE);
-      console.log(`[search] WebFinger result:`, webfingerResult ? webfingerResult.actorUri : 'null');
-      if (webfingerResult) {
+      const fed = c.get('federation');
+      const ctx = getFedifyContext(fed, c.env);
+      // Normalize acct for WebFinger lookup
+      const normalizedAcct = q.replace(/^@/, '');
+      const wfResult = await ctx.lookupWebFinger(`acct:${normalizedAcct}`);
+      // Extract actor URI from self link
+      const selfLink = wfResult?.links?.find(
+        (link) =>
+          link.rel === 'self' &&
+          (link.type === 'application/activity+json' ||
+            link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
+          link.href,
+      );
+      const actorUri = selfLink?.href;
+      // Extract profile URL
+      const profileLink = wfResult?.links?.find(
+        (link) =>
+          link.rel === 'http://webfinger.net/rel/profile-page' &&
+          link.type === 'text/html' &&
+          link.href,
+      );
+      const profileUrl = profileLink?.href;
+      console.log(`[search] WebFinger result:`, actorUri || 'null');
+      if (actorUri) {
         // Check if we already have this actor in the DB
         const existingActor = await c.env.DB.prepare(
           'SELECT * FROM accounts WHERE uri = ?1',
-        ).bind(webfingerResult.actorUri).first();
+        ).bind(actorUri).first();
 
         if (existingActor) {
           // Include existing actor in results if not already present
@@ -64,19 +86,24 @@ app.get('/', authOptional, async (c) => {
             accounts.unshift(serializeAccount(existingActor as unknown as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));
           }
         } else {
-          // Fetch remote actor and upsert
-          let actorData: any = null;
+          // Fetch remote actor via Fedify lookupObject
+          let actorObject: any = null;
           try {
-            actorData = await fetchRemoteActor(webfingerResult.actorUri, c.env.CACHE, c.env.DB, c.env.INSTANCE_DOMAIN);
+            actorObject = await ctx.lookupObject(actorUri);
           } catch (fetchErr) {
-            console.error('[search] fetchRemoteActor error:', fetchErr);
+            console.error('[search] lookupObject error:', fetchErr);
           }
-          console.log('[search] actorData:', actorData ? `type=${actorData.type}, name=${actorData.preferredUsername}` : 'null');
-          if (actorData) {
+          console.log('[search] actorObject:', actorObject ? `id=${actorObject.id?.href}, isActor=${isActor(actorObject)}` : 'null');
+          if (actorObject && isActor(actorObject) && actorObject.id) {
             const id = generateUlid();
             const now = new Date().toISOString();
-            const username = actorData.preferredUsername || actorData.name || '';
-            const actorDomain = new URL(actorData.id).hostname;
+            const username = actorObject.preferredUsername || actorObject.name?.toString() || '';
+            const actorDomain = actorObject.id.hostname;
+            const iconObj = await actorObject.getIcon();
+            const imageObj = await actorObject.getImage();
+            const iconUrl = iconObj?.url instanceof URL ? iconObj.url.href : '';
+            const imageUrl = imageObj?.url instanceof URL ? imageObj.url.href : '';
+            const actorUrl = actorObject.url instanceof URL ? actorObject.url.href : actorObject.id.href;
 
             await c.env.DB.prepare(
               `INSERT OR IGNORE INTO accounts
@@ -89,17 +116,17 @@ app.get('/', authOptional, async (c) => {
               id,
               username,
               actorDomain,
-              actorData.name || username,
-              actorData.summary || '',
-              actorData.id,
-              webfingerResult.profileUrl || actorData.url || actorData.id,
-              actorData.icon?.url || '',
-              actorData.icon?.url || '',
-              actorData.image?.url || '',
-              actorData.image?.url || '',
-              actorData.manuallyApprovesFollowers ? 1 : 0,
-              actorData.type === 'Service' ? 1 : 0,
-              actorData.discoverable !== false ? 1 : 0,
+              actorObject.name?.toString() || username,
+              actorObject.summary?.toString() || '',
+              actorObject.id.href,
+              profileUrl || actorUrl,
+              iconUrl,
+              iconUrl,
+              imageUrl,
+              imageUrl,
+              actorObject.manuallyApprovesFollowers ? 1 : 0,
+              actorObject.constructor.name === 'Service' ? 1 : 0,
+              actorObject.discoverable !== false ? 1 : 0,
               now,
               now,
             ).run();
@@ -107,7 +134,7 @@ app.get('/', authOptional, async (c) => {
             // Fetch the inserted/existing account
             const insertedAccount = await c.env.DB.prepare(
               'SELECT * FROM accounts WHERE uri = ?1',
-            ).bind(actorData.id).first();
+            ).bind(actorObject.id.href).first();
 
             if (insertedAccount) {
               accounts.unshift(serializeAccount(insertedAccount as unknown as AccountRow, { instanceDomain: c.env.INSTANCE_DOMAIN }));

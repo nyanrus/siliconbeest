@@ -12,21 +12,42 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired, authOptional } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { buildEmojiReactActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
-
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-	const t = Date.now();
-	const ts = t.toString(36).padStart(10, '0');
-	const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-		.map((b) => (b % 36).toString(36))
-		.join('');
-	return (ts + rand).toUpperCase();
-}
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Like, Undo, Emoji as APEmoji, Image as APImage } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
+import type { CustomEmojiRow } from '../../../../types/db';
 
 const app = new Hono<HonoEnv>();
+
+/**
+ * Look up a local custom emoji by shortcode and build a Fedify Emoji tag.
+ * Returns null for Unicode emoji or if the shortcode is not found.
+ */
+async function lookupCustomEmojiTag(
+	db: D1Database,
+	domain: string,
+	emoji: string,
+): Promise<{ row: CustomEmojiRow; tag: APEmoji } | null> {
+	if (!emoji.startsWith(':') || !emoji.endsWith(':')) return null;
+	const shortcode = emoji.slice(1, -1);
+	const row = await db
+		.prepare('SELECT * FROM custom_emojis WHERE shortcode = ? AND domain IS NULL')
+		.bind(shortcode)
+		.first<CustomEmojiRow>();
+	if (!row) return null;
+	const emojiUrl = row.image_key.startsWith('http')
+		? row.image_key
+		: `https://${domain}/media/${row.image_key}`;
+	const tag = new APEmoji({
+		id: new URL(`https://${domain}/emojis/${row.shortcode}`),
+		name: emoji,
+		icon: new APImage({
+			url: new URL(emojiUrl),
+			mediaType: 'image/png',
+		}),
+	});
+	return { row, tag };
+}
 
 // PUT /:id/react/:emoji — Add emoji reaction
 app.put('/:id/react/:emoji', authRequired, async (c) => {
@@ -42,34 +63,51 @@ app.put('/:id/react/:emoji', authRequired, async (c) => {
 		.first();
 	if (!row) throw new AppError(404, 'Record not found');
 
-	const id = generateULID();
+	// Validate custom emoji exists
+	const isCustom = emoji.startsWith(':') && emoji.endsWith(':');
+	const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
+	if (isCustom && !emojiLookup) {
+		throw new AppError(422, 'Custom emoji not found');
+	}
+
+	const id = generateUlid();
 	const now = new Date().toISOString();
+
+	const customEmojiId = emojiLookup?.row.id ?? null;
 
 	try {
 		await c.env.DB.prepare(
-			`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, created_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5)`,
+			`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
+			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 		)
-			.bind(id, currentAccountId, statusId, emoji, now)
+			.bind(id, currentAccountId, statusId, emoji, customEmojiId, now)
 			.run();
 	} catch {
 		// UNIQUE constraint — duplicate reaction, ignore
 	}
 
-	// If status author is remote, enqueue Like activity with _misskey_reaction
+	// If status author is remote, send Like activity with content (emoji reaction)
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
 	if (authorDomain) {
 		const authorAccountId = statusRow.account_id as string;
 		const authorAccount = await c.env.DB.prepare(
-			'SELECT inbox_url, shared_inbox_url FROM accounts WHERE id = ?',
-		).bind(authorAccountId).first<{ inbox_url: string | null; shared_inbox_url: string | null }>();
-		const inbox = authorAccount?.shared_inbox_url || authorAccount?.inbox_url;
-		if (inbox) {
-			const actorUri = `https://${domain}/users/${c.get('currentAccount')?.username}`;
+			'SELECT uri FROM accounts WHERE id = ?',
+		).bind(authorAccountId).first<{ uri: string }>();
+		if (authorAccount) {
+			const username = c.get('currentAccount')?.username;
+			const actorUri = `https://${domain}/users/${username}`;
 			const statusUri = statusRow.uri as string;
-			const activity = buildEmojiReactActivity(actorUri, statusUri, emoji);
-			await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), inbox, currentAccountId);
+			const tags = emojiLookup ? [emojiLookup.tag] : [];
+			const like = new Like({
+				id: new URL(`https://${domain}/activities/${generateUlid()}`),
+				actor: new URL(actorUri),
+				object: new URL(statusUri),
+				content: emoji,
+				tags,
+			});
+			const fed = c.get('federation');
+			await sendToRecipient(fed, c.env, username!, authorAccount.uri, like);
 		}
 	}
 
@@ -97,21 +135,34 @@ app.delete('/:id/react/:emoji', authRequired, async (c) => {
 		.bind(currentAccountId, statusId, emoji)
 		.run();
 
-	// If status author is remote, enqueue Undo(Like) with _misskey_reaction
+	// If status author is remote, send Undo(Like) for emoji reaction
 	const statusRow = row as Record<string, unknown>;
 	const authorDomain = statusRow.account_domain as string | null;
 	if (authorDomain && (deleted.meta?.changes ?? 0) > 0) {
 		const authorAccountId = statusRow.account_id as string;
 		const authorAccount = await c.env.DB.prepare(
-			'SELECT inbox_url, shared_inbox_url FROM accounts WHERE id = ?',
-		).bind(authorAccountId).first<{ inbox_url: string | null; shared_inbox_url: string | null }>();
-		const inbox = authorAccount?.shared_inbox_url || authorAccount?.inbox_url;
-		if (inbox) {
-			const actorUri = `https://${domain}/users/${c.get('currentAccount')?.username}`;
+			'SELECT uri FROM accounts WHERE id = ?',
+		).bind(authorAccountId).first<{ uri: string }>();
+		if (authorAccount) {
+			const username = c.get('currentAccount')?.username;
+			const actorUri = `https://${domain}/users/${username}`;
 			const statusUri = statusRow.uri as string;
-			const likeActivity = buildEmojiReactActivity(actorUri, statusUri, emoji);
-			const undoActivity = buildUndoActivity(actorUri, likeActivity);
-			await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(undoActivity), inbox, currentAccountId);
+			const emojiLookup = await lookupCustomEmojiTag(c.env.DB, domain, emoji);
+			const tags = emojiLookup ? [emojiLookup.tag] : [];
+			const originalLike = new Like({
+				id: new URL(`https://${domain}/activities/${generateUlid()}`),
+				actor: new URL(actorUri),
+				object: new URL(statusUri),
+				content: emoji,
+				tags,
+			});
+			const undo = new Undo({
+				id: new URL(`https://${domain}/activities/${generateUlid()}`),
+				actor: new URL(actorUri),
+				object: originalLike,
+			});
+			const fed = c.get('federation');
+			await sendToRecipient(fed, c.env, username!, authorAccount.uri, undo);
 		}
 	}
 
@@ -133,44 +184,70 @@ app.get('/:id/reactions', authOptional, async (c) => {
 		.first();
 	if (!status) throw new AppError(404, 'Record not found');
 
-	// Fetch all reactions with account info, grouped by emoji
+	// Fetch all reactions with account info and custom emoji data via LEFT JOIN
 	const { results } = await c.env.DB.prepare(
 		`SELECT er.emoji, er.account_id,
 		   a.username, a.domain, a.display_name, a.note, a.uri, a.url,
 		   a.avatar_url, a.avatar_static_url, a.header_url, a.header_static_url,
 		   a.locked, a.bot, a.discoverable,
 		   a.followers_count, a.following_count, a.statuses_count,
-		   a.last_status_at, a.created_at
+		   a.last_status_at, a.created_at,
+		   ce.shortcode AS ce_shortcode, ce.domain AS ce_domain, ce.image_key AS ce_image_key
 		 FROM emoji_reactions er
 		 JOIN accounts a ON a.id = er.account_id
+		 LEFT JOIN custom_emojis ce ON ce.id = er.custom_emoji_id
 		 WHERE er.status_id = ?1
 		 ORDER BY er.created_at ASC`,
 	)
 		.bind(statusId)
 		.all();
 
-	// Collect unique custom emoji shortcodes (those with colons like :blobcat:)
-	const customEmojiShortcodes = new Set<string>();
+	// Build emoji URL map from the JOIN results (no extra queries needed)
+	const emojiUrlMap = new Map<string, { url: string; static_url: string }>();
+	for (const row of results ?? []) {
+		const shortcode = row.ce_shortcode as string | null;
+		const imageKey = row.ce_image_key as string | null;
+		if (!shortcode || !imageKey) continue;
+		if (emojiUrlMap.has(shortcode)) continue;
+		const emojiDomain = row.ce_domain as string | null;
+		let url: string;
+		if (emojiDomain) {
+			// Remote custom emoji — proxy to protect user IPs
+			const originalUrl = imageKey.startsWith('http') ? imageKey : `https://${emojiDomain}/${imageKey}`;
+			url = `https://${domain}/proxy?url=${encodeURIComponent(originalUrl)}`;
+		} else {
+			// Local custom emoji — serve directly from media
+			url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
+		}
+		emojiUrlMap.set(shortcode, { url, static_url: url });
+	}
+
+	// Fallback: for reactions without custom_emoji_id set (e.g., older data), look up by shortcode
+	const missingShortcodes = new Set<string>();
 	for (const row of results ?? []) {
 		const emoji = row.emoji as string;
 		if (emoji.startsWith(':') && emoji.endsWith(':')) {
-			customEmojiShortcodes.add(emoji.slice(1, -1));
+			const sc = emoji.slice(1, -1);
+			if (!emojiUrlMap.has(sc)) missingShortcodes.add(sc);
 		}
 	}
-
-	// Fetch custom emoji URLs from DB
-	const emojiUrlMap = new Map<string, { url: string; static_url: string }>();
-	if (customEmojiShortcodes.size > 0) {
-		const shortcodes = [...customEmojiShortcodes];
+	if (missingShortcodes.size > 0) {
+		const shortcodes = [...missingShortcodes];
 		const emojiPlaceholders = shortcodes.map(() => '?').join(',');
 		const { results: emojiRows } = await c.env.DB.prepare(
-			`SELECT shortcode, image_key FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
+			`SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${emojiPlaceholders})`,
 		).bind(...shortcodes).all();
 		for (const er of emojiRows ?? []) {
 			const sc = er.shortcode as string;
 			const imageKey = er.image_key as string;
-			// image_key is either a full URL (remote) or an R2 key (local)
-			const url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
+			const emojiDomain = er.domain as string | null;
+			let url: string;
+			if (emojiDomain) {
+				const originalUrl = imageKey.startsWith('http') ? imageKey : `https://${emojiDomain}/${imageKey}`;
+				url = `https://${domain}/proxy?url=${encodeURIComponent(originalUrl)}`;
+			} else {
+				url = imageKey.startsWith('http') ? imageKey : `https://${domain}/media/${imageKey}`;
+			}
 			emojiUrlMap.set(sc, { url, static_url: url });
 		}
 	}

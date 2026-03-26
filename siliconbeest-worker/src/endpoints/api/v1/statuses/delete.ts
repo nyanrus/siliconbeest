@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildDeleteActivity } from '../../../../federation/activityBuilder';
-import { enqueueFanout } from '../../../../federation/deliveryManager';
+import { sendToFollowers } from '../../../../federation/helpers/send';
+import { Delete as APDelete, Tombstone } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -40,12 +41,18 @@ app.delete('/:id', authRequired, async (c) => {
   if (row.local === 1) {
     try {
       const account = await c.env.DB.prepare(
-        'SELECT uri FROM accounts WHERE id = ?1',
+        'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (account) {
         const actorUri = account.uri as string;
-        const activity = buildDeleteActivity(actorUri, row.uri as string);
-        await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentAccountId);
+        const del = new APDelete({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new Tombstone({ id: new URL(row.uri as string) }),
+          published: new Date(),
+        });
+        const fed = c.get('federation');
+        await sendToFollowers(fed, c.env, account.username as string, del);
       }
     } catch (e) {
       console.error('Federation delivery failed for status delete:', e);

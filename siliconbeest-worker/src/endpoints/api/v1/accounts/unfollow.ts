@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildFollowActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Follow, Undo } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -36,11 +37,18 @@ app.post('/:id/unfollow', authRequired, async (c) => {
     // Send Undo(Follow) to remote server
     if (target.domain) {
       try {
-        const followActivity = buildFollowActivity(actorUri, targetUri);
-        followActivity.id = (follow.uri as string) || followActivity.id;
-        const undoActivity = buildUndoActivity(actorUri, followActivity);
-        const inbox = (target.inbox_url as string) || (target.shared_inbox_url as string) || `https://${target.domain}/inbox`;
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(undoActivity), inbox, currentAccountId);
+        const originalFollow = new Follow({
+          id: new URL((follow.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(targetUri),
+        });
+        const undo = new Undo({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: originalFollow,
+        });
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
       } catch (_) { /* don't fail the API response */ }
     }
   }
@@ -58,11 +66,18 @@ app.post('/:id/unfollow', authRequired, async (c) => {
     // Send Undo(Follow) for pending request too
     if (target.domain) {
       try {
-        const followActivity = buildFollowActivity(actorUri, targetUri);
-        followActivity.id = (fr.uri as string) || followActivity.id;
-        const undoActivity = buildUndoActivity(actorUri, followActivity);
-        const inbox = (target.inbox_url as string) || (target.shared_inbox_url as string) || `https://${target.domain}/inbox`;
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(undoActivity), inbox, currentAccountId);
+        const frFollow = new Follow({
+          id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(targetUri),
+        });
+        const undo = new Undo({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: frFollow,
+        });
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
       } catch (_) { /* don't fail */ }
     }
   }

@@ -19,6 +19,11 @@ app.get('/', async (c) => {
 		settings[row.key as string] = row.value as string;
 	}
 
+	// Include VAPID public key from env (read-only, not stored in DB)
+	if (c.env.VAPID_PUBLIC_KEY) {
+		settings.vapid_public_key = c.env.VAPID_PUBLIC_KEY;
+	}
+
 	return c.json(settings);
 });
 

@@ -9,7 +9,7 @@
 import type { Env } from '../../env';
 import type { APActivity } from '../../types/activitypub';
 import { generateUlid } from '../../utils/ulid';
-import { buildAcceptActivity } from '../activityBuilder';
+import { buildAcceptActivity } from '../helpers/build-activity';
 import { resolveRemoteAccount } from '../resolveRemoteAccount';
 
 export async function processFollow(
@@ -103,7 +103,7 @@ export async function processFollow(
 		});
 
 		// Send Accept(Follow) back to the follower's inbox
-		const acceptActivity = buildAcceptActivity(targetAccount.uri, activity, activity.actor);
+		const acceptJson = await buildAcceptActivity(targetAccount.uri, activity as unknown as Record<string, unknown>, activity.actor);
 
 		// Look up the remote actor's inbox to deliver the Accept
 		const remoteActor = await env.DB.prepare(
@@ -117,7 +117,7 @@ export async function processFollow(
 
 			await env.QUEUE_FEDERATION.send({
 				type: 'deliver_activity',
-				activity: acceptActivity,
+				activity: JSON.parse(acceptJson),
 				inboxUrl: followerInbox,
 				actorAccountId: targetAccount.id,
 			});

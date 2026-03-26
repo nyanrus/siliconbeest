@@ -14,7 +14,7 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { resolveWebFinger } from '../../../../federation/webfinger';
+import { getFedifyContext } from '../../../../federation/helpers/send';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -69,12 +69,22 @@ app.post('/aliases', authRequired, async (c) => {
 	if (alias.startsWith('https://')) {
 		actorUri = alias;
 	} else {
-		// WebFinger resolve to get the actor URI
-		const result = await resolveWebFinger(alias, c.env.CACHE);
-		if (!result) {
+		// WebFinger resolve to get the actor URI via Fedify
+		const fed = c.get('federation');
+		const ctx = getFedifyContext(fed, c.env);
+		const normalizedAlias = alias.replace(/^@/, '');
+		const wfResult = await ctx.lookupWebFinger(`acct:${normalizedAlias}`);
+		const selfLink = wfResult?.links?.find(
+			(link) =>
+				link.rel === 'self' &&
+				(link.type === 'application/activity+json' ||
+					link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
+				link.href,
+		);
+		if (!selfLink?.href) {
 			return c.json({ error: 'Could not resolve alias via WebFinger' }, 422);
 		}
-		actorUri = result.actorUri;
+		actorUri = selfLink.href;
 	}
 
 	// Read current aliases

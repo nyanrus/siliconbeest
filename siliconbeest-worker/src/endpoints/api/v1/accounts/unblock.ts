@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildBlockActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Block, Undo } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -24,15 +25,24 @@ app.post('/:id/unblock', authRequired, async (c) => {
   if (target.domain) {
     try {
       const currentAccount = await c.env.DB.prepare(
-        'SELECT uri FROM accounts WHERE id = ?1',
+        'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
         const targetUri = target.uri as string;
-        const targetInbox = `${targetUri}/inbox`;
-        const blockActivity = buildBlockActivity(actorUri, targetUri);
-        const activity = buildUndoActivity(actorUri, blockActivity);
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), targetInbox, currentAccountId);
+        const domain = c.env.INSTANCE_DOMAIN;
+        const originalBlock = new Block({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(targetUri),
+        });
+        const undo = new Undo({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: originalBlock,
+        });
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount.username as string, targetUri, undo);
       }
     } catch (e) {
       console.error('Federation delivery failed for unblock:', e);

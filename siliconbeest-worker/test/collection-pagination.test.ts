@@ -17,7 +17,7 @@ describe('ActivityPub Collection Pagination', () => {
 	// Followers Collection
 	// ---------------------------------------------------------------
 	describe('GET /users/:username/followers', () => {
-		it('returns OrderedCollection without page param', async () => {
+		it('returns OrderedCollection without cursor param', async () => {
 			const res = await SELF.fetch(`${BASE}/users/colluser/followers`, {
 				headers: { Accept: 'application/activity+json' },
 			});
@@ -27,20 +27,20 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(body.type).toBe('OrderedCollection');
 			expect(typeof body.totalItems).toBe('number');
 			expect(body.first).toBeDefined();
-			expect(body.first).toContain('/followers?page=');
+			// Fedify uses ?cursor= for pagination
+			expect(body.first).toContain('/followers?cursor=');
 			expect(body.id).toBe(`https://${DOMAIN}/users/colluser/followers`);
 		});
 
-		it('returns OrderedCollectionPage with page param', async () => {
-			const res = await SELF.fetch(`${BASE}/users/colluser/followers?page=1`, {
+		it('returns OrderedCollectionPage with cursor param', async () => {
+			const res = await SELF.fetch(`${BASE}/users/colluser/followers?cursor=`, {
 				headers: { Accept: 'application/activity+json' },
 			});
 			expect(res.status).toBe(200);
 
 			const body = await res.json<Record<string, any>>();
 			expect(body.type).toBe('OrderedCollectionPage');
-			expect(body.orderedItems).toBeDefined();
-			expect(Array.isArray(body.orderedItems)).toBe(true);
+			// Fedify omits orderedItems when empty
 			expect(body.partOf).toBe(`https://${DOMAIN}/users/colluser/followers`);
 		});
 
@@ -86,8 +86,8 @@ describe('ActivityPub Collection Pagination', () => {
 				.bind(user.accountId)
 				.run();
 
-			// Check the followers page
-			const res = await SELF.fetch(`${BASE}/users/colluser/followers?page=true`, {
+			// Check the followers page (Fedify uses ?cursor= for first page)
+			const res = await SELF.fetch(`${BASE}/users/colluser/followers?cursor=`, {
 				headers: { Accept: 'application/activity+json' },
 			});
 			expect(res.status).toBe(200);
@@ -97,11 +97,15 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(body.orderedItems).toContain('https://remote.example.com/users/remotefollower');
 		});
 
-		it('returns 404 for unknown user', async () => {
+		it('returns empty collection for unknown user', async () => {
+			// Fedify returns 200 with an empty collection for unknown users
 			const res = await SELF.fetch(`${BASE}/users/unknownuser/followers`, {
 				headers: { Accept: 'application/activity+json' },
 			});
-			expect(res.status).toBe(404);
+			expect(res.status).toBe(200);
+			const body = await res.json<Record<string, any>>();
+			expect(body.type).toBe('OrderedCollection');
+			expect(body.totalItems).toBe(0);
 		});
 	});
 
@@ -109,7 +113,7 @@ describe('ActivityPub Collection Pagination', () => {
 	// Following Collection
 	// ---------------------------------------------------------------
 	describe('GET /users/:username/following', () => {
-		it('returns OrderedCollection without page param', async () => {
+		it('returns OrderedCollection without cursor param', async () => {
 			const res = await SELF.fetch(`${BASE}/users/colluser/following`, {
 				headers: { Accept: 'application/activity+json' },
 			});
@@ -119,20 +123,20 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(body.type).toBe('OrderedCollection');
 			expect(typeof body.totalItems).toBe('number');
 			expect(body.first).toBeDefined();
-			expect(body.first).toContain('/following?page=');
+			// Fedify uses ?cursor= for pagination
+			expect(body.first).toContain('/following?cursor=');
 			expect(body.id).toBe(`https://${DOMAIN}/users/colluser/following`);
 		});
 
-		it('returns OrderedCollectionPage with page param', async () => {
-			const res = await SELF.fetch(`${BASE}/users/colluser/following?page=1`, {
+		it('returns OrderedCollectionPage with cursor param', async () => {
+			const res = await SELF.fetch(`${BASE}/users/colluser/following?cursor=`, {
 				headers: { Accept: 'application/activity+json' },
 			});
 			expect(res.status).toBe(200);
 
 			const body = await res.json<Record<string, any>>();
 			expect(body.type).toBe('OrderedCollectionPage');
-			expect(body.orderedItems).toBeDefined();
-			expect(Array.isArray(body.orderedItems)).toBe(true);
+			// Fedify omits orderedItems when empty
 			expect(body.partOf).toBe(`https://${DOMAIN}/users/colluser/following`);
 		});
 
@@ -175,7 +179,8 @@ describe('ActivityPub Collection Pagination', () => {
 				.bind(user.accountId)
 				.run();
 
-			const res = await SELF.fetch(`${BASE}/users/colluser/following?page=true`, {
+			// Fedify uses ?cursor= for first page
+			const res = await SELF.fetch(`${BASE}/users/colluser/following?cursor=`, {
 				headers: { Accept: 'application/activity+json' },
 			});
 			expect(res.status).toBe(200);
@@ -199,7 +204,7 @@ describe('ActivityPub Collection Pagination', () => {
 			});
 		});
 
-		it('returns OrderedCollection without page param', async () => {
+		it('returns OrderedCollection without cursor param', async () => {
 			const res = await SELF.fetch(`${BASE}/users/colluser/outbox`, {
 				headers: { Accept: 'application/activity+json' },
 			});
@@ -210,12 +215,14 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(typeof body.totalItems).toBe('number');
 			expect(body.totalItems).toBeGreaterThanOrEqual(1);
 			expect(body.first).toBeDefined();
-			expect(body.first).toContain('/outbox?page=');
+			// Fedify uses ?cursor= for pagination
+			expect(body.first).toContain('/outbox?cursor=');
 			expect(body.id).toBe(`https://${DOMAIN}/users/colluser/outbox`);
 		});
 
 		it('returns OrderedCollectionPage with Create activities', async () => {
-			const res = await SELF.fetch(`${BASE}/users/colluser/outbox?page=true`, {
+			// Fedify uses ?cursor= for first page
+			const res = await SELF.fetch(`${BASE}/users/colluser/outbox?cursor=`, {
 				headers: { Accept: 'application/activity+json' },
 			});
 			expect(res.status).toBe(200);
@@ -235,11 +242,15 @@ describe('ActivityPub Collection Pagination', () => {
 			expect(firstItem.object.type).toBe('Note');
 		});
 
-		it('returns 404 for unknown user', async () => {
+		it('returns empty collection for unknown user', async () => {
+			// Fedify returns 200 with an empty collection for unknown users
 			const res = await SELF.fetch(`${BASE}/users/unknownuser/outbox`, {
 				headers: { Accept: 'application/activity+json' },
 			});
-			expect(res.status).toBe(404);
+			expect(res.status).toBe(200);
+			const body = await res.json<Record<string, any>>();
+			expect(body.type).toBe('OrderedCollection');
+			expect(body.totalItems).toBe(0);
 		});
 	});
 });

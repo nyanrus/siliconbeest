@@ -2,19 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildBlockActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
-
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Block } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
@@ -35,7 +25,7 @@ app.post('/:id/block', authRequired, async (c) => {
 
   if (!existing) {
     const now = new Date().toISOString();
-    const id = generateULID();
+    const id = generateUlid();
 
     // Block and remove any existing follows in both directions
     await c.env.DB.batch([
@@ -53,14 +43,19 @@ app.post('/:id/block', authRequired, async (c) => {
   if (target.domain) {
     try {
       const currentAccount = await c.env.DB.prepare(
-        'SELECT uri FROM accounts WHERE id = ?1',
+        'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
         const targetUri = target.uri as string;
-        const targetInbox = `${targetUri}/inbox`;
-        const activity = buildBlockActivity(actorUri, targetUri);
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), targetInbox, currentAccountId);
+        const domain = c.env.INSTANCE_DOMAIN;
+        const block = new Block({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(targetUri),
+        });
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount.username as string, targetUri, block);
       }
     } catch (e) {
       console.error('Federation delivery failed for block:', e);

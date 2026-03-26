@@ -1,89 +1,106 @@
-import { SELF, env } from 'cloudflare:test';
+import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser } from './helpers';
+import { processLike } from '../src/federation/inboxProcessors/like';
+import { processFollow } from '../src/federation/inboxProcessors/follow';
+import type { APActivity } from '../src/types/activitypub';
 
-const BASE = 'https://test.siliconbeest.local';
 const DOMAIN = 'test.siliconbeest.local';
 
-async function generateRSAKeyPair(): Promise<{ publicKeyPem: string; privateKeyPem: string }> {
-	const keyPair = await crypto.subtle.generateKey(
-		{ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: { name: 'SHA-256' } },
-		true, ['sign', 'verify'],
-	);
-	const pub = await crypto.subtle.exportKey('spki', keyPair.publicKey);
-	const priv = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
-	const toB64 = (buf: ArrayBuffer) => {
-		const b = btoa(String.fromCharCode(...new Uint8Array(buf)));
-		return b.match(/.{1,64}/g)!.join('\n');
-	};
-	return {
-		publicKeyPem: `-----BEGIN PUBLIC KEY-----\n${toB64(pub)}\n-----END PUBLIC KEY-----`,
-		privateKeyPem: `-----BEGIN PRIVATE KEY-----\n${toB64(priv)}\n-----END PRIVATE KEY-----`,
-	};
-}
-
 describe('Activity Idempotency (DB-based)', () => {
-	let user: { accountId: string; userId: string; token: string };
-	let privateKeyPem: string;
+	let localUser: { accountId: string; userId: string; token: string };
+	let remoteAccountId: string;
+	let statusId: string;
 
 	beforeAll(async () => {
 		await applyMigration();
-		user = await createTestUser('idempuser');
-		const keys = await generateRSAKeyPair();
-		privateKeyPem = keys.privateKeyPem;
+		localUser = await createTestUser('idempuser');
+
 		const now = new Date().toISOString();
-		const remoteAccountId = crypto.randomUUID();
-		await env.DB.batch([
-			env.DB.prepare(
-				`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, inbox_url, created_at, updated_at)
-				 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?)`,
-			).bind(remoteAccountId, 'remoteactor', 'remote.example.com', 'Remote Actor',
-				'https://remote.example.com/users/remoteactor', 'https://remote.example.com/@remoteactor',
-				'https://remote.example.com/users/remoteactor/inbox', now, now),
-			env.DB.prepare(
-				`INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			).bind(crypto.randomUUID(), remoteAccountId, keys.publicKeyPem, 'unused',
-				'https://remote.example.com/users/remoteactor#main-key', now),
-		]);
+		remoteAccountId = crypto.randomUUID();
+
+		// Insert a remote account so resolveRemoteAccount finds it by URI
+		await env.DB.prepare(
+			`INSERT INTO accounts (id, username, domain, display_name, note, uri, url, inbox_url, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?)`,
+		)
+			.bind(
+				remoteAccountId,
+				'remoteactor',
+				'remote.example.com',
+				'Remote Actor',
+				'https://remote.example.com/users/remoteactor',
+				'https://remote.example.com/@remoteactor',
+				'https://remote.example.com/users/remoteactor/inbox',
+				now,
+				now,
+			)
+			.run();
+
+		// Insert a status so processLike has something to find
+		statusId = crypto.randomUUID();
+		const statusUri = `https://${DOMAIN}/users/idempuser/statuses/${statusId}`;
+		await env.DB.prepare(
+			`INSERT INTO statuses (id, account_id, uri, url, text, visibility, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, 'test post', 'public', ?, ?)`,
+		)
+			.bind(statusId, localUser.accountId, statusUri, statusUri, now, now)
+			.run();
 	});
 
-	it('duplicate activities are handled gracefully by DB UNIQUE constraints', async () => {
-		const { signRequest } = await import('../src/federation/httpSignatures');
-		const activity = {
+	it('duplicate Like activities are handled gracefully', async () => {
+		const statusUri = `https://${DOMAIN}/users/idempuser/statuses/${statusId}`;
+
+		const activity: APActivity = {
 			'@context': 'https://www.w3.org/ns/activitystreams',
-			id: 'https://remote.example.com/activities/dup-test-1',
+			id: 'https://remote.example.com/activities/dup-like-1',
 			type: 'Like',
 			actor: 'https://remote.example.com/users/remoteactor',
-			object: `https://${DOMAIN}/users/idempuser/statuses/nonexistent`,
+			object: statusUri,
 		};
-		const body = JSON.stringify(activity);
-		const url = `${BASE}/users/idempuser/inbox`;
-		const headers = await signRequest(privateKeyPem, 'https://remote.example.com/users/remoteactor#main-key', url, 'POST', body);
 
-		// Send same activity twice
-		const res1 = await SELF.fetch(url, { method: 'POST', headers, body });
-		expect(res1.status).toBe(202);
+		// First call should succeed
+		await processLike(activity, localUser.accountId, env);
 
-		const res2 = await SELF.fetch(url, { method: 'POST', headers, body });
-		expect(res2.status).toBe(202); // Should not crash
+		// Second call with same activity should not throw (duplicate handled by DB)
+		await expect(
+			processLike(activity, localUser.accountId, env),
+		).resolves.not.toThrow();
 	});
 
-	it('different activities are both accepted', async () => {
-		const { signRequest } = await import('../src/federation/httpSignatures');
-		const url = `${BASE}/users/idempuser/inbox`;
+	it('different Like activities both succeed', async () => {
+		const statusUri = `https://${DOMAIN}/users/idempuser/statuses/${statusId}`;
 
-		for (const id of ['distinct-a', 'distinct-b']) {
-			const activity = {
+		for (const id of ['distinct-like-a', 'distinct-like-b']) {
+			const activity: APActivity = {
 				'@context': 'https://www.w3.org/ns/activitystreams',
 				id: `https://remote.example.com/activities/${id}`,
 				type: 'Like',
 				actor: 'https://remote.example.com/users/remoteactor',
-				object: `https://${DOMAIN}/users/idempuser/statuses/1`,
+				object: statusUri,
 			};
-			const body = JSON.stringify(activity);
-			const headers = await signRequest(privateKeyPem, 'https://remote.example.com/users/remoteactor#main-key', url, 'POST', body);
-			const res = await SELF.fetch(url, { method: 'POST', headers, body });
-			expect(res.status).toBe(202);
+
+			await expect(
+				processLike(activity, localUser.accountId, env),
+			).resolves.not.toThrow();
 		}
+	});
+
+	it('duplicate Follow activities are handled gracefully', async () => {
+		const activity: APActivity = {
+			'@context': 'https://www.w3.org/ns/activitystreams',
+			id: 'https://remote.example.com/activities/dup-follow-1',
+			type: 'Follow',
+			actor: 'https://remote.example.com/users/remoteactor',
+			object: `https://${DOMAIN}/users/idempuser`,
+		};
+
+		// First call should succeed
+		await processFollow(activity, localUser.accountId, env);
+
+		// Second call with same activity should not throw
+		await expect(
+			processFollow(activity, localUser.accountId, env),
+		).resolves.not.toThrow();
 	});
 });

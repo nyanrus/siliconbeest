@@ -3,8 +3,9 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { buildLikeActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Like, Undo } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -35,16 +36,24 @@ app.post('/:id/unfavourite', authRequired, async (c) => {
   if (existing && row.account_domain) {
     try {
       const currentAccount = await c.env.DB.prepare(
-        'SELECT uri FROM accounts WHERE id = ?1',
+        'SELECT uri, username FROM accounts WHERE id = ?1',
       ).bind(currentAccountId).first();
       if (currentAccount) {
         const actorUri = currentAccount.uri as string;
         const statusUri = row.uri as string;
-        const likeActivity = buildLikeActivity(actorUri, statusUri);
-        const activity = buildUndoActivity(actorUri, likeActivity);
         const authorUri = row.account_uri as string;
-        const authorInbox = `${authorUri}/inbox`;
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), authorInbox, currentAccountId);
+        const originalLike = new Like({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: new URL(statusUri),
+        });
+        const undo = new Undo({
+          id: new URL(`https://${domain}/activities/${generateUlid()}`),
+          actor: new URL(actorUri),
+          object: originalLike,
+        });
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount.username as string, authorUri, undo);
       }
     } catch (e) {
       console.error('Federation delivery failed for unfavourite:', e);

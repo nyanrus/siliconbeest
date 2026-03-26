@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 
+import type { Federation } from '@fedify/fedify';
 import type { QueueMessage, SendEmailMessage } from './types/queue';
+import type { FedifyContextData } from './federation/fedify';
 
 /**
  * Cloudflare Workers environment bindings.
@@ -16,6 +18,7 @@ export interface Env {
   // KV Namespaces
   CACHE: KVNamespace;
   SESSIONS: KVNamespace;
+  FEDIFY_KV: KVNamespace;
 
   // Queues (producer bindings)
   QUEUE_FEDERATION: Queue<QueueMessage>;
@@ -54,6 +57,8 @@ export interface AppVariables {
   requestId: string;
   /** True when the client accepts ActivityPub content types. */
   isActivityPub: boolean;
+  /** Fedify Federation instance (created per-request in middleware). */
+  federation: Federation<FedifyContextData>;
 }
 
 /**

@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
-import { resolveWebFinger, fetchRemoteActor } from '../../../../federation/webfinger';
+import { getFedifyContext } from '../../../../federation/helpers/send';
+import { isActor } from '@fedify/fedify/vocab';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -39,17 +40,34 @@ app.get('/lookup', async (c) => {
     ).bind(username, acctDomain).first();
   }
 
-  // If remote account not in DB, try WebFinger resolve
+  // If remote account not in DB, try WebFinger + Fedify lookupObject
   if (!row && acctDomain && acctDomain !== instanceDomain) {
     try {
-      const wfResult = await resolveWebFinger(`${username}@${acctDomain}`, c.env.CACHE);
-      if (wfResult?.actorUri) {
-        const actorData = await fetchRemoteActor(wfResult.actorUri, c.env.CACHE, c.env.DB, instanceDomain);
-        if (actorData) {
+      const fed = c.get('federation');
+      const ctx = getFedifyContext(fed, c.env);
+      const wfResult = await ctx.lookupWebFinger(`acct:${username}@${acctDomain}`);
+      const selfLink = wfResult?.links?.find(
+        (link) =>
+          link.rel === 'self' &&
+          (link.type === 'application/activity+json' ||
+            link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
+          link.href,
+      );
+      if (selfLink?.href) {
+        const actorObject = await ctx.lookupObject(selfLink.href);
+        if (actorObject && isActor(actorObject) && actorObject.id) {
           // Upsert into accounts
           const id = crypto.randomUUID();
           const now = new Date().toISOString();
-          const preferredUsername = actorData.preferredUsername || username;
+          const preferredUsername = actorObject.preferredUsername || username;
+          const iconObj = await actorObject.getIcon();
+          const imageObj = await actorObject.getImage();
+          const iconUrl = iconObj?.url instanceof URL ? iconObj.url.href : '';
+          const imageUrl = imageObj?.url instanceof URL ? imageObj.url.href : '';
+          const actorUrl = actorObject.url instanceof URL ? actorObject.url.href : `https://${acctDomain}/@${preferredUsername}`;
+          const inboxUrl = actorObject.inboxId?.href || '';
+          const endpointsObj = await actorObject.getEndpoints();
+          const sharedInboxUrl = endpointsObj?.sharedInboxId?.href || '';
           await c.env.DB.prepare(
             `INSERT OR IGNORE INTO accounts (id, username, domain, display_name, note, uri, url,
              avatar_url, header_url, locked, bot, discoverable, inbox_url, shared_inbox_url,
@@ -57,14 +75,14 @@ app.get('/lookup', async (c) => {
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?18)`,
           ).bind(
             id, preferredUsername, acctDomain,
-            actorData.name || '', actorData.summary || '',
-            actorData.id || wfResult.actorUri,
-            actorData.url || `https://${acctDomain}/@${preferredUsername}`,
-            actorData.icon?.url || '', actorData.image?.url || '',
-            actorData.manuallyApprovesFollowers ? 1 : 0,
-            actorData.type === 'Service' ? 1 : 0,
-            actorData.discoverable ? 1 : 0,
-            actorData.inbox || '', actorData.endpoints?.sharedInbox || '',
+            actorObject.name?.toString() || '', actorObject.summary?.toString() || '',
+            actorObject.id.href,
+            actorUrl,
+            iconUrl, imageUrl,
+            actorObject.manuallyApprovesFollowers ? 1 : 0,
+            actorObject.constructor.name === 'Service' ? 1 : 0,
+            actorObject.discoverable ? 1 : 0,
+            inboxUrl, sharedInboxUrl,
             0, 0, 0, now,
           ).run();
 

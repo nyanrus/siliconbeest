@@ -3,19 +3,9 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { buildAnnounceActivity } from '../../../../federation/activityBuilder';
-import { enqueueFanout } from '../../../../federation/deliveryManager';
-
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
+import { sendToFollowers } from '../../../../federation/helpers/send';
+import { Announce } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
@@ -102,7 +92,7 @@ app.post('/:id/reblog', authRequired, async (c) => {
   }
 
   const now = new Date().toISOString();
-  const reblogId = generateULID();
+  const reblogId = generateUlid();
   const reblogUri = `https://${domain}/users/${currentAccount.username}/statuses/${reblogId}/activity`;
 
   await c.env.DB.batch([
@@ -149,13 +139,16 @@ app.post('/:id/reblog', authRequired, async (c) => {
     const actorUri = `https://${domain}/users/${currentAccount.username}`;
     const followersUri = `${actorUri}/followers`;
     const statusUri = row.uri as string;
-    const activity = buildAnnounceActivity(
-      actorUri,
-      statusUri,
-      ['https://www.w3.org/ns/activitystreams#Public'],
-      [followersUri],
-    );
-    await enqueueFanout(c.env.QUEUE_FEDERATION, JSON.stringify(activity), currentUser.account_id);
+    const announce = new Announce({
+      id: new URL(reblogUri),
+      actor: new URL(actorUri),
+      object: new URL(statusUri),
+      published: new Date(),
+      tos: [new URL('https://www.w3.org/ns/activitystreams#Public')],
+      ccs: [new URL(followersUri)],
+    });
+    const fed = c.get('federation');
+    await sendToFollowers(fed, c.env, currentAccount.username, announce);
   } catch (e) {
     console.error('Federation delivery failed for reblog:', e);
   }

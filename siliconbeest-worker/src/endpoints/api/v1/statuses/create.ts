@@ -2,13 +2,20 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildCreateActivity } from '../../../../federation/activityBuilder';
-import { enqueueFanout, enqueueDelivery } from '../../../../federation/deliveryManager';
-import { serializeNote } from '../../../../federation/noteSerializer';
 import { parseContent, type ParsedMention } from '../../../../utils/contentParser';
-import { resolveWebFinger } from '../../../../federation/webfinger';
 import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
-import type { StatusRow, AccountRow } from '../../../../types/db';
+import { getFedifyContext, sendToFollowers, sendToRecipient } from '../../../../federation/helpers/send';
+import {
+  Create,
+  Note,
+  Mention,
+  Hashtag,
+  Image,
+  Document as APDocument,
+  Source,
+} from '@fedify/vocab';
+import { Temporal } from '@js-temporal/polyfill';
+import { generateUlid } from '../../../../utils/ulid';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -224,17 +231,29 @@ app.post('/', authRequired, async (c) => {
         'SELECT id, uri, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
       ).bind(mention.username, mention.domain).first();
 
-      // If not found locally, try WebFinger resolution
+      // If not found locally, try WebFinger resolution via Fedify
       if (!accountRow) {
         try {
-          const wfResult = await resolveWebFinger(`${mention.username}@${mention.domain}`, c.env.CACHE);
+          const fed = c.get('federation');
+          const ctx = getFedifyContext(fed, c.env);
+          const wfResult = await ctx.lookupWebFinger(`acct:${mention.username}@${mention.domain}`);
           if (wfResult) {
-            // resolveRemoteAccount will fetch the actor doc and upsert
-            const accountId = await resolveRemoteAccount(wfResult.actorUri, c.env);
-            if (accountId) {
-              accountRow = await c.env.DB.prepare(
-                'SELECT id, uri, inbox_url, domain FROM accounts WHERE id = ?1',
-              ).bind(accountId).first();
+            // Extract actor URI from self link
+            const selfLink = wfResult.links?.find(
+              (link) =>
+                link.rel === 'self' &&
+                (link.type === 'application/activity+json' ||
+                  link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
+                link.href,
+            );
+            if (selfLink?.href) {
+              // resolveRemoteAccount will fetch the actor doc and upsert
+              const accountId = await resolveRemoteAccount(selfLink.href, c.env);
+              if (accountId) {
+                accountRow = await c.env.DB.prepare(
+                  'SELECT id, uri, inbox_url, domain FROM accounts WHERE id = ?1',
+                ).bind(accountId).first();
+              }
             }
           }
         } catch (e) {
@@ -384,145 +403,182 @@ app.post('/', authRequired, async (c) => {
   }
 
   // ============================================================
-  // Federation: deliver Create(Note) activity
+  // Federation: deliver Create(Note) activity via Fedify
   // ============================================================
   try {
     const actorUri = `https://${domain}/users/${currentAccount.username}`;
-    const fullAccount = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(currentAccount.id).first();
-    const statusRowForNote: StatusRow = {
-      id: statusId,
-      uri: statusUri,
-      url: statusUrl,
-      account_id: currentUser.account_id,
-      in_reply_to_id: inReplyToId,
-      in_reply_to_account_id: inReplyToAccountId,
-      reblog_of_id: null,
-      text: statusText,
-      content: fixedContent,
-      content_warning: spoilerText,
-      visibility,
-      sensitive: sensitive,
-      language,
-      conversation_id: conversationId,
-      reply: isReply,
-      replies_count: 0,
-      reblogs_count: 0,
-      favourites_count: 0,
-      local: 1,
-      federated_at: null,
-      edited_at: null,
-      deleted_at: null,
-      poll_id: null,
-      quote_id: quoteId,
-      emoji_tags: null,
-      created_at: now,
-      updated_at: now,
-    };
-    const accountRowForNote: AccountRow = {
-      id: currentUser.account_id,
-      username: currentAccount.username,
-      domain: null,
-      display_name: (fullAccount?.display_name as string) || '',
-      note: (fullAccount?.note as string) || '',
-      uri: actorUri,
-      url: `https://${domain}/@${currentAccount.username}`,
-      avatar_url: (fullAccount?.avatar_url as string) || '',
-      avatar_static_url: (fullAccount?.avatar_static_url as string) || '',
-      header_url: (fullAccount?.header_url as string) || '',
-      header_static_url: (fullAccount?.header_static_url as string) || '',
-      locked: 0,
-      bot: 0,
-      discoverable: 1,
-      manually_approves_followers: 0,
-      statuses_count: 0,
-      followers_count: 0,
-      following_count: 0,
-      last_status_at: null,
-      created_at: now,
-      updated_at: now,
-      suspended_at: null,
-      silenced_at: null,
-      memorial: 0,
-      moved_to_account_id: null,
-    };
+    const followersUri = `${actorUri}/followers`;
 
-    // Build mention data for serializeNote (already resolved above)
-    const mentionsForNote = resolvedMentions.map((rm) => ({
-      account_id: rm.account_id,
-      actor_uri: rm.actor_uri,
-      acct: rm.acct,
-      status_id: statusId,
-      id: '',
-      created_at: now,
-      silent: 0,
-    }));
+    // -- Addressing: to/cc based on visibility --
+    const AS_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+    const mentionUris = resolvedMentions
+      .filter((rm) => rm.actor_uri)
+      .map((rm) => new URL(rm.actor_uri));
 
-    // Fetch media attachments for AP Note
-    const { results: apMediaRows } = await c.env.DB.prepare(
-      'SELECT * FROM media_attachments WHERE status_id = ?1',
-    ).bind(statusId).all();
-    const apAttachments = (apMediaRows ?? []).map((m: any) => ({
-      url: `https://${domain}/media/${m.file_key}`,
-      mediaType: m.file_content_type || 'image/jpeg',
-      description: m.description || '',
-      width: m.width as number | null,
-      height: m.height as number | null,
-      blurhash: m.blurhash as string | null,
-      type: m.type || 'image',
-    }));
+    let toUrls: URL[];
+    let ccUrls: URL[];
+    switch (visibility) {
+      case 'public':
+        toUrls = [new URL(AS_PUBLIC)];
+        ccUrls = [new URL(followersUri), ...mentionUris];
+        break;
+      case 'unlisted':
+        toUrls = [new URL(followersUri)];
+        ccUrls = [new URL(AS_PUBLIC), ...mentionUris];
+        break;
+      case 'private':
+        toUrls = [new URL(followersUri)];
+        ccUrls = [...mentionUris];
+        break;
+      case 'direct':
+        toUrls = [...mentionUris];
+        ccUrls = [];
+        break;
+      default:
+        toUrls = [new URL(AS_PUBLIC)];
+        ccUrls = [new URL(followersUri), ...mentionUris];
+    }
 
-    const note = serializeNote(statusRowForNote, accountRowForNote, domain, { mentions: mentionsForNote, conversationApUri, quoteUri, attachments: apAttachments });
-
-    // Override inReplyTo with the parent status URI (not internal DB ID)
+    // -- Resolve inReplyTo URI --
+    let replyTarget: URL | undefined;
     if (inReplyToId) {
       const parentUri = await c.env.DB.prepare(
         'SELECT uri FROM statuses WHERE id = ?1',
       ).bind(inReplyToId).first<{ uri: string }>();
       if (parentUri) {
-        note.inReplyTo = parentUri.uri;
+        replyTarget = new URL(parentUri.uri);
       }
     }
 
-    const activity = buildCreateActivity(actorUri, note);
-    const activityJson = JSON.stringify(activity);
+    // -- Build Mention tags --
+    const mentionTags = resolvedMentions.map((rm) =>
+      new Mention({
+        href: rm.actor_uri ? new URL(rm.actor_uri) : undefined,
+        name: `@${rm.acct}`,
+      }),
+    );
 
-    // Collect remote inboxes we need to deliver to directly (mentioned users)
-    const deliveredInboxes = new Set<string>();
+    // -- Build Hashtag tags --
+    const hashtagTags = hashtags.map((tag) =>
+      new Hashtag({
+        href: new URL(`https://${domain}/tags/${tag}`),
+        name: `#${tag}`,
+      }),
+    );
 
-    // Deliver to each mentioned remote user's inbox (for ALL visibility levels)
+    // -- Build media attachments --
+    const { results: apMediaRows } = await c.env.DB.prepare(
+      'SELECT * FROM media_attachments WHERE status_id = ?1',
+    ).bind(statusId).all();
+    const mediaAttachmentObjects = (apMediaRows ?? []).map((m: any) => {
+      const attUrl = new URL(`https://${domain}/media/${m.file_key}`);
+      const attMediaType = m.file_content_type || 'image/jpeg';
+      const attName = m.description || null;
+      if ((m.type || 'image') === 'image') {
+        return new Image({
+          url: attUrl,
+          mediaType: attMediaType,
+          name: attName,
+        });
+      }
+      return new APDocument({
+        url: attUrl,
+        mediaType: attMediaType,
+        name: attName,
+      });
+    });
+
+    // -- Build Fedify Note --
+    const noteValues: ConstructorParameters<typeof Note>[0] = {
+      id: new URL(statusUri),
+      attribution: new URL(actorUri),
+      content: fixedContent,
+      url: new URL(statusUrl),
+      published: Temporal.Instant.from(now),
+      tos: toUrls,
+      ccs: ccUrls,
+      sensitive: !!sensitive,
+      summary: spoilerText || null,
+    };
+
+    if (replyTarget) {
+      noteValues.replyTarget = replyTarget;
+    }
+
+    const allTags = [...mentionTags, ...hashtagTags];
+    if (allTags.length > 0) {
+      noteValues.tags = allTags;
+    }
+
+    if (mediaAttachmentObjects.length > 0) {
+      noteValues.attachments = mediaAttachmentObjects;
+    }
+
+    // Source (raw text) -- standard AP property
+    if (statusText) {
+      noteValues.source = new Source({
+        content: statusText,
+        mediaType: 'text/plain',
+      });
+    }
+
+    // FEP-e232: Quote post
+    if (quoteUri) {
+      noteValues.quoteUrl = new URL(quoteUri);
+    }
+
+    // Conversation context
+    if (conversationApUri) {
+      noteValues.contexts = [new URL(conversationApUri)];
+    }
+
+    const fedifyNote = new Note(noteValues);
+
+    // -- Build Create activity --
+    const create = new Create({
+      id: new URL(`https://${domain}/activities/${generateUlid()}`),
+      actor: new URL(actorUri),
+      object: fedifyNote,
+      published: Temporal.Instant.from(now),
+      tos: toUrls,
+      ccs: ccUrls,
+    });
+
+    // -- Send via Fedify --
+    const fed = c.get('federation');
+    const deliveredRecipients = new Set<string>();
+
+    // Deliver to each mentioned remote user
     for (const rm of resolvedMentions) {
-      if (rm.mentionDomain && rm.inbox_url) {
-        if (!deliveredInboxes.has(rm.inbox_url)) {
-          deliveredInboxes.add(rm.inbox_url);
-          await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, rm.inbox_url, currentUser.account_id);
-        }
-      } else if (rm.mentionDomain && rm.actor_uri) {
-        // Fallback: derive inbox from actor URI
-        const fallbackInbox = `${rm.actor_uri}/inbox`;
-        if (!deliveredInboxes.has(fallbackInbox)) {
-          deliveredInboxes.add(fallbackInbox);
-          await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, fallbackInbox, currentUser.account_id);
+      if (rm.mentionDomain && rm.actor_uri) {
+        if (!deliveredRecipients.has(rm.actor_uri)) {
+          deliveredRecipients.add(rm.actor_uri);
+          await sendToRecipient(fed, c.env, currentAccount.username, rm.actor_uri, create);
         }
       }
     }
 
     if (visibility === 'public' || visibility === 'unlisted') {
       // Fanout to all followers
-      await enqueueFanout(c.env.QUEUE_FEDERATION, activityJson, currentUser.account_id);
+      await sendToFollowers(fed, c.env, currentAccount.username, create);
 
-      // If this is a reply to a remote user, also deliver directly to their inbox
+      // If this is a reply to a remote user, also deliver directly
       if (inReplyToAccountId) {
         const parentAuthor = await c.env.DB.prepare(
-          'SELECT id, domain, inbox_url, uri FROM accounts WHERE id = ?1',
+          'SELECT id, domain, uri FROM accounts WHERE id = ?1',
         ).bind(inReplyToAccountId).first();
-        if (parentAuthor && parentAuthor.domain) {
-          const inbox = (parentAuthor.inbox_url as string) || `${parentAuthor.uri as string}/inbox`;
-          if (!deliveredInboxes.has(inbox)) {
-            await enqueueDelivery(c.env.QUEUE_FEDERATION, activityJson, inbox, currentUser.account_id);
+        if (parentAuthor && parentAuthor.domain && parentAuthor.uri) {
+          const parentActorUri = parentAuthor.uri as string;
+          if (!deliveredRecipients.has(parentActorUri)) {
+            await sendToRecipient(fed, c.env, currentAccount.username, parentActorUri, create);
           }
         }
       }
+    } else if (visibility === 'private') {
+      // Private: send to followers only (no public fanout, but followers get it)
+      await sendToFollowers(fed, c.env, currentAccount.username, create);
     }
+    // For 'direct': only the mentioned recipients above get the delivery
   } catch (e) {
     console.error('Federation delivery failed for status create:', e);
   }

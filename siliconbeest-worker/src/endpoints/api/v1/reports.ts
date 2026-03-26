@@ -3,8 +3,8 @@ import type { Env, AppVariables } from '../../../env';
 import { authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
-import { buildFlagActivity } from '../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../federation/deliveryManager';
+import { getFedifyContext } from '../../../federation/helpers/send';
+import { Flag } from '@fedify/fedify/vocab';
 import { notifyAdminsNewReport } from '../../../services/email';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -90,16 +90,20 @@ app.post('/', authRequired, async (c) => {
         statusUrisList = (results || []).map((r) => r.uri as string);
       }
       const targetUri = targetAccount.uri as string;
-      // Deliver to the target instance's shared inbox
-      const targetDomain = targetAccount.domain as string;
-      const instance = await c.env.DB.prepare(
-        'SELECT inbox_url FROM instances WHERE domain = ?1',
-      ).bind(targetDomain).first();
-      const targetInbox = instance?.inbox_url
-        ? (instance.inbox_url as string)
-        : `https://${targetDomain}/inbox`;
-      const activity = buildFlagActivity(instanceActorUri, targetUri, statusUrisList, comment);
-      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), targetInbox, 'instance');
+      const flag = new Flag({
+        id: new URL(`${instanceActorUri}#reports/${generateUlid()}`),
+        actor: new URL(instanceActorUri),
+        objects: [new URL(targetUri), ...statusUrisList.map((u) => new URL(u))],
+        content: comment,
+      });
+      // Use Fedify context to send from the instance actor
+      const fed = c.get('federation');
+      const ctx = getFedifyContext(fed, c.env);
+      await ctx.sendActivity(
+        { identifier: 'instance' },
+        new URL(targetUri),
+        flag,
+      );
     } catch (e) {
       console.error('Federation delivery failed for report forward:', e);
     }

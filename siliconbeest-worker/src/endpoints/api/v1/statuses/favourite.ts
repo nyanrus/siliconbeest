@@ -3,19 +3,9 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
 import { STATUS_JOIN_SQL, serializeStatusEnriched } from './fetch';
-import { buildLikeActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
-
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Like } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
@@ -35,7 +25,7 @@ app.post('/:id/favourite', authRequired, async (c) => {
 
   if (!existing) {
     const now = new Date().toISOString();
-    const id = generateULID();
+    const id = generateUlid();
     await c.env.DB.batch([
       c.env.DB.prepare(
         'INSERT INTO favourites (id, account_id, status_id, created_at) VALUES (?1, ?2, ?3, ?4)',
@@ -61,15 +51,19 @@ app.post('/:id/favourite', authRequired, async (c) => {
     if (row.account_domain) {
       try {
         const currentAccount = await c.env.DB.prepare(
-          'SELECT uri FROM accounts WHERE id = ?1',
+          'SELECT uri, username FROM accounts WHERE id = ?1',
         ).bind(currentAccountId).first();
         if (currentAccount) {
           const actorUri = currentAccount.uri as string;
           const statusUri = row.uri as string;
           const authorUri = row.account_uri as string;
-          const inbox = `${authorUri}/inbox`;
-          const activity = buildLikeActivity(actorUri, statusUri);
-          await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(activity), inbox, currentAccountId);
+          const like = new Like({
+            id: new URL(`https://${domain}/activities/${generateUlid()}`),
+            actor: new URL(actorUri),
+            object: new URL(statusUri),
+          });
+          const fed = c.get('federation');
+          await sendToRecipient(fed, c.env, currentAccount.username as string, authorUri, like);
         }
       } catch (e) {
         console.error('Federation delivery failed for favourite:', e);

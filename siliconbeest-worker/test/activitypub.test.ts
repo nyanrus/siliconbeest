@@ -79,8 +79,9 @@ describe('ActivityPub Endpoints', () => {
       expect(body.first).toBeDefined();
     });
 
-    it('returns a page with activities when ?page=true', async () => {
-      const res = await SELF.fetch(`${BASE}/users/apuser/outbox?page=true`, {
+    it('returns a page with activities when ?cursor=', async () => {
+      // Fedify uses ?cursor= for pagination (not ?page=true)
+      const res = await SELF.fetch(`${BASE}/users/apuser/outbox?cursor=`, {
         headers: { Accept: 'application/activity+json' },
       });
       expect(res.status).toBe(200);

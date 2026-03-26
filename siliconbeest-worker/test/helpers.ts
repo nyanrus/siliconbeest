@@ -1,5 +1,43 @@
 import { env } from 'cloudflare:test';
 
+// ---------------------------------------------------------------------------
+// Test RSA key pair (generated once at module level, cached for reuse)
+// ---------------------------------------------------------------------------
+let testKeyPair: { publicPem: string; privatePem: string } | null = null;
+
+async function getTestKeyPair(): Promise<{ publicPem: string; privatePem: string }> {
+  if (testKeyPair) return testKeyPair;
+
+  const kp = await crypto.subtle.generateKey(
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
+    true,
+    ['sign', 'verify'],
+  );
+
+  const pubBuf = await crypto.subtle.exportKey('spki', kp.publicKey);
+  const privBuf = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+
+  const toBase64 = (buf: ArrayBuffer) => {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  const pubPem = `-----BEGIN PUBLIC KEY-----\n${toBase64(pubBuf)}\n-----END PUBLIC KEY-----`;
+  const privPem = `-----BEGIN PRIVATE KEY-----\n${toBase64(privBuf)}\n-----END PRIVATE KEY-----`;
+
+  testKeyPair = { publicPem: pubPem, privatePem: privPem };
+  return testKeyPair;
+}
+
 // Import all migration SQL files at build time using Vite's ?raw imports.
 // This keeps test schema in sync with production migrations automatically.
 // When adding a new migration file, add an import here.
@@ -70,10 +108,13 @@ export async function createTestUser(username: string, opts?: { email?: string; 
   const clientId = crypto.randomUUID().replace(/-/g, '');
   const clientSecret = crypto.randomUUID().replace(/-/g, '');
 
+  // Use real RSA PEM keys so Fedify's actor dispatcher can parse them
+  const keys = await getTestKeyPair();
+
   await env.DB.batch([
     env.DB.prepare("INSERT INTO accounts (id, username, domain, display_name, note, uri, url, created_at, updated_at) VALUES (?, ?, NULL, ?, '', ?, ?, ?, ?)").bind(id, username, username, uri, 'https://test.siliconbeest.local/@' + username, now, now),
     env.DB.prepare("INSERT INTO users (id, account_id, email, encrypted_password, role, approved, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(id, id, email, 'dummy_hash', role, now, now, now),
-    env.DB.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, 'test-pub-key', 'test-priv-key', uri + '#main-key', now),
+    env.DB.prepare("INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), id, keys.publicPem, keys.privatePem, uri + '#main-key', now),
     env.DB.prepare("INSERT INTO oauth_applications (id, name, website, redirect_uri, client_id, client_secret, scopes, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)").bind(appId, 'Test App', 'urn:ietf:wg:oauth:2.0:oob', clientId, clientSecret, 'read write follow push', now, now),
     env.DB.prepare("INSERT INTO oauth_access_tokens (id, token, application_id, user_id, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), token, appId, id, 'read write follow push', now),
   ]);

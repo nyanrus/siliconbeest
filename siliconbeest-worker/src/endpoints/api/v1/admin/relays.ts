@@ -12,8 +12,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../utils/ulid';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
-import type { APActivity } from '../../../../types/activitypub';
-import { buildFollowActivity, buildUndoActivity } from '../../../../federation/activityBuilder';
+import { buildFollowActivity, buildUndoActivity } from '../../../../federation/helpers/build-activity';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -150,8 +149,9 @@ app.post('/', async (c) => {
 	const actorUri = `https://${domain}/actor`;
 
 	// Build Follow activity
-	const followActivity = buildFollowActivity(actorUri, body.inbox_url);
-	const followActivityId = followActivity.id as string;
+	const followActivityJson = await buildFollowActivity(actorUri, body.inbox_url);
+	const followActivityParsed = JSON.parse(followActivityJson);
+	const followActivityId = followActivityParsed.id as string;
 
 	// Create relay record
 	const id = generateUlid();
@@ -170,7 +170,7 @@ app.post('/', async (c) => {
 	// Queue the delivery via federation queue
 	await c.env.QUEUE_FEDERATION.send({
 		type: 'deliver_activity',
-		activity: followActivity,
+		activity: followActivityParsed,
 		inboxUrl: body.inbox_url,
 		actorAccountId: '__instance__',
 	});
@@ -199,19 +199,19 @@ app.delete('/:id', async (c) => {
 
 	// Send Undo(Follow) to the relay inbox
 	if (relay.follow_activity_id) {
-		const originalFollow = {
+		const originalFollow: Record<string, unknown> = {
 			'@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
 			id: relay.follow_activity_id,
 			type: 'Follow',
 			actor: actorUri,
 			object: relay.inbox_url,
-		} as APActivity;
+		};
 
-		const undoActivity = buildUndoActivity(actorUri, originalFollow);
+		const undoJson = await buildUndoActivity(actorUri, originalFollow);
 
 		await c.env.QUEUE_FEDERATION.send({
 			type: 'deliver_activity',
-			activity: undoActivity,
+			activity: JSON.parse(undoJson),
 			inboxUrl: relay.inbox_url,
 			actorAccountId: '__instance__',
 		});

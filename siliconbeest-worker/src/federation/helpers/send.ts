@@ -1,0 +1,95 @@
+/**
+ * Fedify Send Activity Helper
+ *
+ * Provides a simple interface for sending ActivityPub activities
+ * from Hono route handlers using Fedify's delivery pipeline.
+ *
+ * Fedify handles:
+ * - HTTP Signatures (RFC 9421 + draft-cavage)
+ * - Linked Data Signatures
+ * - Object Integrity Proofs (FEP-8b32)
+ * - Follower resolution for fanout
+ * - Queue-based async delivery via WorkersMessageQueue
+ */
+
+import type { Federation, Context } from '@fedify/fedify';
+import type { Activity } from '@fedify/fedify/vocab';
+import type { Env } from '../../env';
+import type { FedifyContextData } from '../fedify';
+
+/**
+ * Get a Fedify Context from a Federation instance for sending activities.
+ *
+ * Usage in Hono route handlers:
+ * ```typescript
+ * const fed = c.get('federation');
+ * const ctx = getFedifyContext(fed, c.env);
+ * await ctx.sendActivity(
+ *   { identifier: currentAccount.username },
+ *   "followers",
+ *   activity,
+ * );
+ * ```
+ */
+export function getFedifyContext(
+	federation: Federation<FedifyContextData>,
+	env: Env,
+): Context<FedifyContextData> {
+	return federation.createContext(
+		new URL(`https://${env.INSTANCE_DOMAIN}`),
+		{ env },
+	);
+}
+
+/**
+ * Send an activity to followers using Fedify's delivery pipeline.
+ *
+ * This is the Fedify replacement for `enqueueFanout()`.
+ * Fedify resolves all followers, deduplicates inboxes, signs the
+ * activity, and delivers via the queue.
+ *
+ * @param federation - The Federation instance from c.get('federation')
+ * @param env - Cloudflare Workers environment bindings
+ * @param senderUsername - The local username of the sending actor
+ * @param activity - The Fedify Activity object to send
+ */
+export async function sendToFollowers(
+	federation: Federation<FedifyContextData>,
+	env: Env,
+	senderUsername: string,
+	activity: Activity,
+): Promise<void> {
+	const ctx = getFedifyContext(federation, env);
+	await ctx.sendActivity(
+		{ identifier: senderUsername },
+		'followers',
+		activity,
+	);
+}
+
+/**
+ * Send an activity to a specific inbox using Fedify's delivery pipeline.
+ *
+ * This is the Fedify replacement for `enqueueDelivery()`.
+ * Fedify signs the activity and delivers to the specified recipient.
+ *
+ * @param federation - The Federation instance from c.get('federation')
+ * @param env - Cloudflare Workers environment bindings
+ * @param senderUsername - The local username of the sending actor
+ * @param recipientUri - The ActivityPub URI of the recipient actor
+ * @param activity - The Fedify Activity object to send
+ */
+export async function sendToRecipient(
+	federation: Federation<FedifyContextData>,
+	env: Env,
+	senderUsername: string,
+	recipientUri: string,
+	activity: Activity,
+): Promise<void> {
+	const ctx = getFedifyContext(federation, env);
+	await ctx.sendActivity(
+		{ identifier: senderUsername },
+		new URL(recipientUri),
+		activity,
+	);
+}

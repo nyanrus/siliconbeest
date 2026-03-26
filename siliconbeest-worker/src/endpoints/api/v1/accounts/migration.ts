@@ -19,10 +19,11 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
-import { resolveWebFinger, fetchRemoteActor } from '../../../../federation/webfinger';
 import { resolveRemoteAccount } from '../../../../federation/resolveRemoteAccount';
-import { buildMoveActivity } from '../../../../federation/activityBuilder';
-import { enqueueFanout } from '../../../../federation/deliveryManager';
+import { sendToFollowers, getFedifyContext } from '../../../../federation/helpers/send';
+import { isActor } from '@fedify/fedify/vocab';
+import { Move } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -39,22 +40,26 @@ app.post('/migration', authRequired, async (c) => {
 
 	const targetAcct = body.target_acct.trim();
 
-	// 1. WebFinger resolve target
-	const webfingerResult = await resolveWebFinger(targetAcct, c.env.CACHE);
-	if (!webfingerResult) {
+	// 1. WebFinger resolve target via Fedify
+	const fed = c.get('federation');
+	const ctx = getFedifyContext(fed, c.env);
+	const wfResult = await ctx.lookupWebFinger(`acct:${targetAcct.replace(/^@/, '')}`);
+	const selfLink = wfResult?.links?.find(
+		(link) =>
+			link.rel === 'self' &&
+			(link.type === 'application/activity+json' ||
+				link.type === 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') &&
+			link.href,
+	);
+	if (!selfLink?.href) {
 		return c.json({ error: 'Could not resolve target account via WebFinger' }, 422);
 	}
 
-	const targetActorUri = webfingerResult.actorUri;
+	const targetActorUri = selfLink.href;
 
-	// 2. Fetch target actor document
-	const targetActor = await fetchRemoteActor(
-		targetActorUri,
-		c.env.CACHE,
-		c.env.DB,
-		domain,
-	);
-	if (!targetActor) {
+	// 2. Fetch target actor document via Fedify
+	const targetActor = await ctx.lookupObject(targetActorUri);
+	if (!targetActor || !isActor(targetActor) || !targetActor.id) {
 		return c.json({ error: 'Could not fetch target actor document' }, 422);
 	}
 
@@ -70,8 +75,8 @@ app.post('/migration', authRequired, async (c) => {
 	}
 
 	const ourUri = account.uri;
-	const alsoKnownAs: string[] = Array.isArray(targetActor.alsoKnownAs)
-		? targetActor.alsoKnownAs
+	const alsoKnownAs: string[] = targetActor.aliasIds
+		? Array.from(targetActor.aliasIds).map((u: URL) => u.href)
 		: [];
 
 	if (!alsoKnownAs.includes(ourUri)) {
@@ -96,12 +101,13 @@ app.post('/migration', authRequired, async (c) => {
 		.run();
 
 	// 5. Build Move activity and fanout to followers
-	const moveActivity = buildMoveActivity(ourUri, targetActorUri);
-	await enqueueFanout(
-		c.env.QUEUE_FEDERATION,
-		JSON.stringify(moveActivity),
-		accountId,
-	);
+	const move = new Move({
+		id: new URL(`${ourUri}#moves/${generateUlid()}`),
+		actor: new URL(ourUri),
+		object: new URL(ourUri),
+		target: new URL(targetActorUri),
+	});
+	await sendToFollowers(fed, c.env, account.username, move);
 
 	console.log(`[migration] Account ${ourUri} moved to ${targetActorUri}`);
 

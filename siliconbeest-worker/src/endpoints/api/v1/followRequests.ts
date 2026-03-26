@@ -5,8 +5,8 @@ import { AppError } from '../../../middleware/errorHandler';
 import { generateUlid } from '../../../utils/ulid';
 import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../../utils/pagination';
 import { serializeAccount } from '../../../utils/mastodonSerializer';
-import { buildAcceptActivity, buildRejectActivity, buildFollowActivity } from '../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../federation/deliveryManager';
+import { sendToRecipient } from '../../../federation/helpers/send';
+import { Accept, Reject, Follow } from '@fedify/fedify/vocab';
 import type { AccountRow } from '../../../types/db';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -118,13 +118,19 @@ app.post('/:id/authorize', authRequired, async (c) => {
   if (remoteAccount?.domain) {
     try {
       const myUri = `https://${domain}/users/${currentAccount.username}`;
-      // Reconstruct the original Follow activity
-      const followActivity = buildFollowActivity(remoteAccount.uri, myUri);
-      // Use the stored follow request URI if available
-      if (fr.uri) followActivity.id = fr.uri as string;
-      const acceptActivity = buildAcceptActivity(myUri, followActivity, remoteAccount.uri);
-      const inbox = remoteAccount.inbox_url || remoteAccount.shared_inbox_url || `https://${remoteAccount.domain}/inbox`;
-      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(acceptActivity), inbox, currentAccount.id);
+      const originalFollow = new Follow({
+        id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(remoteAccount.uri),
+        object: new URL(myUri),
+      });
+      const accept = new Accept({
+        id: new URL(`https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(myUri),
+        object: originalFollow,
+        tos: [new URL(remoteAccount.uri)],
+      });
+      const fed = c.get('federation');
+      await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount.uri, accept);
     } catch (_) { /* don't fail the API response */ }
   }
 
@@ -177,11 +183,19 @@ app.post('/:id/reject', authRequired, async (c) => {
     try {
       const domain = c.env.INSTANCE_DOMAIN;
       const myUri = `https://${domain}/users/${currentAccount.username}`;
-      const followActivity = buildFollowActivity(remoteAccount2.uri, myUri);
-      if (fr.uri) followActivity.id = fr.uri as string;
-      const rejectActivity = buildRejectActivity(myUri, followActivity, remoteAccount2.uri);
-      const inbox = remoteAccount2.inbox_url || remoteAccount2.shared_inbox_url || `https://${remoteAccount2.domain}/inbox`;
-      await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(rejectActivity), inbox, currentAccount.id);
+      const originalFollow = new Follow({
+        id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(remoteAccount2.uri),
+        object: new URL(myUri),
+      });
+      const reject = new Reject({
+        id: new URL(`https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(myUri),
+        object: originalFollow,
+        tos: [new URL(remoteAccount2.uri)],
+      });
+      const fed = c.get('federation');
+      await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount2.uri, reject);
     } catch (_) { /* don't fail */ }
   }
 

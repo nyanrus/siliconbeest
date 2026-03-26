@@ -257,7 +257,7 @@ describe('Account Migration', () => {
       expect(actor.alsoKnownAs).toContain(aliasUri);
     });
 
-    it('after removing alias, alsoKnownAs is empty', async () => {
+    it('after removing alias, alsoKnownAs is empty or absent', async () => {
       const aliasUri = 'https://origin.example/users/carolold';
 
       // Remove the alias
@@ -273,7 +273,9 @@ describe('Account Migration', () => {
       });
       expect(actorRes.status).toBe(200);
       const actor = await actorRes.json<any>();
-      expect(actor.alsoKnownAs).toEqual([]);
+      // Fedify omits alsoKnownAs when empty; old endpoint returned []
+      const aliases = actor.alsoKnownAs ?? [];
+      expect(aliases).toEqual([]);
     });
 
     it('movedTo is absent when account has not migrated', async () => {

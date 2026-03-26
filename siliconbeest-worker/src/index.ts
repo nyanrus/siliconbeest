@@ -7,16 +7,21 @@
 
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
+import { federation } from '@fedify/hono';
 
 import type { Env, AppVariables } from './env';
 import { corsMiddleware } from './middleware/cors';
 import { requestIdMiddleware } from './middleware/requestId';
 import { contentNegotiation } from './middleware/contentNegotiation';
 import { errorHandler } from './middleware/errorHandler';
+import { createFed, type FedifyContextData } from './federation/fedify';
+import { setupActorDispatcher } from './federation/dispatchers/actor';
+import { setupNodeInfoDispatcher } from './federation/dispatchers/nodeinfo';
+import { setupCollectionDispatchers } from './federation/dispatchers/collections';
+import { setupInboxListeners } from './federation/listeners/inbox';
 
 // -- Well-Known / Discovery --
-import webfinger from './endpoints/wellknown/webfinger';
-import nodeinfo from './endpoints/wellknown/nodeinfo';
+import nodeinfo2_0 from './endpoints/wellknown/nodeinfo2_0';
 import hostMeta from './endpoints/wellknown/hostMeta';
 
 // -- OAuth --
@@ -85,13 +90,6 @@ import proxyEndpoint from './endpoints/proxy';
 // -- ActivityPub --
 import apActor from './endpoints/activitypub/actor';
 import apInstanceActor from './endpoints/activitypub/instanceActor';
-import apInbox from './endpoints/activitypub/inbox';
-import apSharedInbox from './endpoints/activitypub/sharedInbox';
-import apOutbox from './endpoints/activitypub/outbox';
-import apFollowers from './endpoints/activitypub/followers';
-import apFollowing from './endpoints/activitypub/following';
-import apFeatured from './endpoints/activitypub/featured';
-import apFeaturedTags from './endpoints/activitypub/featuredTags';
 
 // -- Durable Object export --
 export { StreamingDO } from './durableObjects/streaming';
@@ -111,6 +109,51 @@ app.use('*', requestIdMiddleware);
 app.use('*', corsMiddleware);
 app.use('*', contentNegotiation);
 app.use('*', logger());
+
+// ---------------------------------------------------------------------------
+// Fedify Federation Middleware
+//
+// In Cloudflare Workers the env bindings are only available per-request,
+// so we create a Federation instance and register dispatchers on every
+// request.  The @fedify/hono `federation()` helper returns a Hono-compatible
+// middleware; we invoke it inline.
+//
+// Fedify handles: /.well-known/webfinger, /.well-known/nodeinfo,
+//   /nodeinfo/2.1, /users/{identifier} (actor AP + WebFinger)
+// Hono handles (Fedify passes through): /.well-known/host-meta,
+//   /nodeinfo/2.0, /actor, /inbox, /users/*/outbox, etc.
+// ---------------------------------------------------------------------------
+
+const FEDIFY_SKIP_PREFIXES: string[] = [
+  // All Fedify-handled routes are active. Remaining routes fall through to Hono.
+];
+
+app.use('*', async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+
+  // Skip Fedify for paths our existing endpoints handle better (Phase 1)
+  for (const prefix of FEDIFY_SKIP_PREFIXES) {
+    if (path.startsWith(prefix) || path === prefix) {
+      return next();
+    }
+  }
+
+  const fed = createFed(c.env);
+  setupActorDispatcher(fed);
+  setupNodeInfoDispatcher(fed);
+  setupCollectionDispatchers(fed);
+  setupInboxListeners(fed);
+
+  // Store federation instance for use in route handlers (sendActivity)
+  c.set('federation', fed);
+
+  const fedMiddleware = federation<FedifyContextData, typeof c>(
+    fed,
+    (_ctx) => ({ env: c.env }),
+  );
+
+  return fedMiddleware(c, next);
+});
 
 // ---------------------------------------------------------------------------
 // Health
@@ -157,10 +200,8 @@ app.get('/authorize_interaction', (c) => {
 // Well-Known / Discovery
 // ---------------------------------------------------------------------------
 
-app.route('/.well-known/webfinger', webfinger);
-app.route('/.well-known/nodeinfo', nodeinfo);
 app.route('/.well-known/host-meta', hostMeta);
-app.route('/nodeinfo', nodeinfo);
+app.route('/nodeinfo', nodeinfo2_0);
 
 // ---------------------------------------------------------------------------
 // OAuth
@@ -227,14 +268,7 @@ app.route('/api/v2/filters', filters);
 // ---------------------------------------------------------------------------
 
 app.route('/users', apActor);
-app.route('/users', apInbox);
-app.route('/users', apOutbox);
-app.route('/users', apFollowers);
-app.route('/users', apFollowing);
-app.route('/users', apFeatured);
-app.route('/users', apFeaturedTags);
 app.route('/actor', apInstanceActor);
-app.route('/inbox', apSharedInbox);
 
 // ---------------------------------------------------------------------------
 // Media serving (R2)

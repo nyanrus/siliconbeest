@@ -2,19 +2,9 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { AppError } from '../../../../middleware/errorHandler';
-import { buildFollowActivity } from '../../../../federation/activityBuilder';
-import { enqueueDelivery } from '../../../../federation/deliveryManager';
-
-type HonoEnv = { Bindings: Env; Variables: AppVariables };
-
-function generateULID(): string {
-  const t = Date.now();
-  const ts = t.toString(36).padStart(10, '0');
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((b) => (b % 36).toString(36))
-    .join('');
-  return (ts + rand).toUpperCase();
-}
+import { sendToRecipient } from '../../../../federation/helpers/send';
+import { Follow } from '@fedify/fedify/vocab';
+import { generateUlid } from '../../../../utils/ulid';
 
 const app = new Hono<HonoEnv>();
 
@@ -86,7 +76,7 @@ app.post('/:id/follow', authRequired, async (c) => {
   }
 
   const now = new Date().toISOString();
-  const id = generateULID();
+  const id = generateUlid();
   const targetUri = target.uri as string;
   const isRemote = !!(target.domain);
   const needsApproval = !!(target.locked || target.manually_approves_followers);
@@ -95,18 +85,23 @@ app.post('/:id/follow', authRequired, async (c) => {
   // AP spec: we send Follow, then wait for Accept/Reject from the remote.
   // For LOCAL accounts with locked: also use follow_requests.
   if (isRemote || needsApproval) {
-    const followActivity = buildFollowActivity(actorUri, targetUri);
+    const followActivityId = `https://${domain}/activities/${generateUlid()}`;
+    const follow = new Follow({
+      id: new URL(followActivityId),
+      actor: new URL(actorUri),
+      object: new URL(targetUri),
+    });
 
     await c.env.DB.prepare(
       `INSERT INTO follow_requests (id, account_id, target_account_id, uri, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?5)`,
-    ).bind(id, currentAccountId, targetId, followActivity.id, now).run();
+    ).bind(id, currentAccountId, targetId, followActivityId, now).run();
 
     // Send Follow activity to remote server
     if (isRemote) {
       try {
-        const inbox = (target.inbox_url as string) || (target.shared_inbox_url as string) || `https://${target.domain}/inbox`;
-        await enqueueDelivery(c.env.QUEUE_FEDERATION, JSON.stringify(followActivity), inbox, currentAccountId);
+        const fed = c.get('federation');
+        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, follow);
       } catch (_) { /* don't fail the API response */ }
     } else {
       // Local locked account: create notification for target
@@ -140,8 +135,7 @@ app.post('/:id/follow', authRequired, async (c) => {
   }
 
   // LOCAL non-locked account: auto-accept immediately
-  const followActivity = buildFollowActivity(actorUri, targetUri);
-  const followUri = followActivity.id as string;
+  const followUri = `https://${domain}/activities/${generateUlid()}`;
 
   await c.env.DB.batch([
     c.env.DB.prepare(

@@ -75,14 +75,12 @@ describe('Federation Discovery', () => {
       expect(Array.isArray(body.links)).toBe(true);
       expect(body.links.length).toBeGreaterThanOrEqual(1);
 
-      const link = body.links[0];
-      expect(link.rel).toBe('http://nodeinfo.diaspora.software/ns/schema/2.1');
-      expect(link.href).toBe(`https://${DOMAIN}/nodeinfo/2.1`);
-
-      // Verify backward-compatible 2.0 link is also present
-      const link20 = body.links[1];
-      expect(link20.rel).toBe('http://nodeinfo.diaspora.software/ns/schema/2.0');
-      expect(link20.href).toBe(`https://${DOMAIN}/nodeinfo/2.0`);
+      // At least the 2.1 link must be present (Fedify serves this)
+      const link21 = body.links.find(
+        (l: any) => l.rel === 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+      );
+      expect(link21).toBeDefined();
+      expect(link21.href).toBe(`https://${DOMAIN}/nodeinfo/2.1`);
     });
   });
 

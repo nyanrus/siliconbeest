@@ -1,34 +1,35 @@
+/**
+ * Actor Endpoint — Tombstone fallback only
+ *
+ * Fedify's actor dispatcher handles normal actor requests at /users/{identifier}.
+ * This Hono route only handles the suspended-actor Tombstone case (HTTP 410),
+ * which Fedify cannot express via its actor dispatcher return type.
+ *
+ * When Fedify's dispatcher returns null for a suspended actor, the request
+ * falls through to Hono and this route catches it.
+ */
+
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../env';
-import { serializeActor } from '../../federation/actorSerializer';
-import type { AccountRow, ActorKeyRow, CustomEmojiRow } from '../../types/db';
+import type { AccountRow } from '../../types/db';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
-
-/**
- * Extract custom emoji shortcodes from text (e.g. :custom_emoji:).
- */
-function extractEmojiShortcodes(text: string): string[] {
-  const matches = text.match(/:([a-zA-Z0-9_]+):/g);
-  if (!matches) return [];
-  return [...new Set(matches.map((m) => m.replace(/:/g, '')))];
-}
 
 app.get('/:username', async (c) => {
   const username = c.req.param('username');
   const domain = c.env.INSTANCE_DOMAIN;
 
   const account = await c.env.DB.prepare(`
-    SELECT * FROM accounts
+    SELECT id, username, suspended_at FROM accounts
     WHERE username = ?1 AND domain IS NULL
     LIMIT 1
-  `).bind(username).first<AccountRow>();
+  `).bind(username).first<Pick<AccountRow, 'id' | 'username' | 'suspended_at'>>();
 
   if (!account) {
     return c.json({ error: 'Record not found' }, 404);
   }
 
-  // C2: Return Tombstone for suspended actors
+  // Return Tombstone for suspended actors
   if (account.suspended_at) {
     const actorUri = `https://${domain}/users/${username}`;
     return c.json({
@@ -43,59 +44,9 @@ app.get('/:username', async (c) => {
     });
   }
 
-  const actorKey = await c.env.DB.prepare(`
-    SELECT * FROM actor_keys
-    WHERE account_id = ?1
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).bind(account.id).first<ActorKeyRow>();
-
-  if (!actorKey) {
-    return c.json({ error: 'Actor key not found' }, 500);
-  }
-
-  // Parse alsoKnownAs from DB JSON column
-  let alsoKnownAs: string[] = [];
-  if (account.also_known_as) {
-    try {
-      const parsed = JSON.parse(account.also_known_as);
-      if (Array.isArray(parsed)) alsoKnownAs = parsed;
-    } catch {
-      // Invalid JSON; skip
-    }
-  }
-
-  // Resolve movedTo URI if this account has moved
-  let movedTo: string | undefined;
-  if (account.moved_to_account_id) {
-    const targetAccount = await c.env.DB.prepare(
-      `SELECT uri FROM accounts WHERE id = ?1 LIMIT 1`,
-    ).bind(account.moved_to_account_id).first<{ uri: string }>();
-    if (targetAccount) {
-      movedTo = targetAccount.uri;
-    }
-  }
-
-  // Look up custom emojis used in the display name or bio
-  const textToScan = `${account.display_name || ''} ${account.note || ''}`;
-  const shortcodes = extractEmojiShortcodes(textToScan);
-  let customEmojis: CustomEmojiRow[] = [];
-
-  if (shortcodes.length > 0) {
-    const placeholders = shortcodes.map((_, i) => `?${i + 1}`).join(', ');
-    const { results } = await c.env.DB.prepare(
-      `SELECT * FROM custom_emojis WHERE shortcode IN (${placeholders}) AND domain IS NULL`,
-    ).bind(...shortcodes).all();
-    customEmojis = (results ?? []) as unknown as CustomEmojiRow[];
-  }
-
-  const actor = serializeActor(account, actorKey, domain, { alsoKnownAs, movedTo, customEmojis });
-
-  return c.json(actor, 200, {
-    'Content-Type': 'application/activity+json; charset=utf-8',
-    'Cache-Control': 'max-age=180, public',
-    'Vary': 'Accept',
-  });
+  // Non-suspended actors should have been handled by Fedify.
+  // If we reach here, something went wrong in the Fedify dispatcher.
+  return c.json({ error: 'Record not found' }, 404);
 });
 
 export default app;

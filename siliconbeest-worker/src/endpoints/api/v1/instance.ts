@@ -12,7 +12,7 @@ app.get('/', async (c) => {
 
   const dbSettings: Record<string, string> = {};
   const { results: settingsRows } = await c.env.DB.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'site_contact_email', 'site_contact_username')",
+    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'site_contact_email', 'site_contact_username', 'web_push_enabled')",
   ).all();
   for (const row of settingsRows ?? []) {
     dbSettings[row.key as string] = row.value as string;
@@ -122,6 +122,8 @@ app.get('/', async (c) => {
     },
     contact_account: contactAccount,
     rules,
+    push_enabled: dbSettings.web_push_enabled === '1',
+    vapid_key: c.env.VAPID_PUBLIC_KEY || null,
   });
 });
 

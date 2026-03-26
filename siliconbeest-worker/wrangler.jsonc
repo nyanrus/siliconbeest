@@ -44,6 +44,10 @@
 		{
 			"binding": "SESSIONS",
 			"id": "b28dd211bbfc41d2b928ecfe71e3c087"
+		},
+		{
+			"binding": "FEDIFY_KV",
+			"id": "cc8fbc2dafae46cfb3346d08520fed36"
 		}
 	],
 

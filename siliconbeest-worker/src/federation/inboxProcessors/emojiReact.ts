@@ -95,16 +95,32 @@ export async function processEmojiReact(
 		}
 	}
 
+	// Resolve custom_emoji_id for custom emoji reactions
+	let customEmojiId: string | null = null;
+	if (emoji.startsWith(':') && emoji.endsWith(':')) {
+		const shortcode = emoji.slice(1, -1);
+		// Look up the custom emoji we just stored (or already existed)
+		const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
+		let emojiDomain: string | null = null;
+		try { emojiDomain = new URL(reactorUri).hostname; } catch { /* skip */ }
+		if (emojiDomain) {
+			const emojiRow = await env.DB.prepare(
+				'SELECT id FROM custom_emojis WHERE shortcode = ? AND domain = ? LIMIT 1',
+			).bind(shortcode, emojiDomain).first<{ id: string }>();
+			if (emojiRow) customEmojiId = emojiRow.id;
+		}
+	}
+
 	// Insert emoji reaction (ignore duplicate via UNIQUE constraint)
 	const reactionId = generateUlid();
 	const now = new Date().toISOString();
 
 	try {
 		await env.DB.prepare(
-			`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, created_at)
-			 VALUES (?1, ?2, ?3, ?4, ?5)`,
+			`INSERT INTO emoji_reactions (id, account_id, status_id, emoji, custom_emoji_id, created_at)
+			 VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 		)
-			.bind(reactionId, actorAccountId, status.id, emoji, now)
+			.bind(reactionId, actorAccountId, status.id, emoji, customEmojiId, now)
 			.run();
 	} catch {
 		// Duplicate reaction, ignore
