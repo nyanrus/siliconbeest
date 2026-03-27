@@ -18,6 +18,7 @@ import {
   Image,
   Document as APDocument,
   Source,
+  Emoji as APEmoji,
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import type { Federation } from '@fedify/fedify';
@@ -686,6 +687,26 @@ export function buildFedifyNote(
       content: status.text,
       mediaType: 'text/plain',
     });
+  }
+
+  // Build custom emoji tags from emoji_tags JSON
+  const emojiTagObjects: APEmoji[] = [];
+  if ((status as any).emoji_tags) {
+    try {
+      const emojiTags = JSON.parse((status as any).emoji_tags) as Array<{ shortcode: string; url: string; static_url?: string }>;
+      for (const et of emojiTags) {
+        if (!et.shortcode || !et.url) continue;
+        emojiTagObjects.push(new APEmoji({
+          id: new URL(et.url),
+          name: `:${et.shortcode}:`,
+          icon: new Image({ url: new URL(et.url), mediaType: 'image/png' }),
+        }));
+      }
+    } catch { /* ignore malformed JSON */ }
+  }
+
+  if (emojiTagObjects.length > 0) {
+    noteValues.tags = [...(noteValues.tags ?? []), ...emojiTagObjects];
   }
 
   const note = new Note(noteValues);

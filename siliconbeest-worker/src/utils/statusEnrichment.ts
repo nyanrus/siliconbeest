@@ -284,86 +284,16 @@ export async function enrichStatuses(
       if (!shortcodesInContent.has(shortcode)) continue;
       const url = (tag.url as string) || (tag.icon as any)?.url;
       if (!url) continue;
-      allEmojiCandidates.push({ statusId, shortcode, url });
+
+      const proxyUrl = proxyEmojiUrl(url, domain);
+      if (!statusEmojiMap.has(statusId)) statusEmojiMap.set(statusId, []);
+      statusEmojiMap.get(statusId)!.push({
+        shortcode,
+        url: proxyUrl,
+        static_url: proxyUrl,
+        visible_in_picker: false,
+      });
     }
-  }
-
-  // Batch-verify emoji URLs: KV cache check → HEAD request for unknowns
-  // KV key: "emoji_ok:{sha256(url)}" → "1" (valid) or "0" (invalid), TTL 2 hours
-  const verifiedEmojis = new Map<string, boolean>(); // url → accessible
-  const urlsToCheck: string[] = [];
-
-  if (cache && allEmojiCandidates.length > 0) {
-    // Deduplicate URLs
-    const uniqueUrls = [...new Set(allEmojiCandidates.map((e) => e.url))];
-
-    // Check KV cache first (batch get not available, use parallel single gets)
-    const kvChecks = await Promise.all(
-      uniqueUrls.map(async (url) => {
-        const key = `emoji_ok:${url.length}:${url.substring(url.length - 40)}`;
-        const cached = await cache.get(key);
-        return { url, cached };
-      }),
-    );
-
-    for (const { url, cached } of kvChecks) {
-      if (cached !== null) {
-        verifiedEmojis.set(url, cached === '1');
-      } else {
-        urlsToCheck.push(url);
-      }
-    }
-
-    // HEAD-check unknown URLs in parallel (max 10 concurrent, 2s timeout each)
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < urlsToCheck.length; i += BATCH_SIZE) {
-      const batch = urlsToCheck.slice(i, i + BATCH_SIZE);
-      const headResults = await Promise.allSettled(
-        batch.map(async (url) => {
-          try {
-            const res = await fetch(url, {
-              method: 'HEAD',
-              signal: AbortSignal.timeout(2000),
-              headers: { 'User-Agent': 'SiliconBeest/0.1.0' },
-            });
-            return { url, ok: res.ok };
-          } catch {
-            return { url, ok: false };
-          }
-        }),
-      );
-
-      for (const r of headResults) {
-        if (r.status === 'fulfilled') {
-          verifiedEmojis.set(r.value.url, r.value.ok);
-          // Cache result in KV (2 hour TTL)
-          const key = `emoji_ok:${r.value.url.length}:${r.value.url.substring(r.value.url.length - 40)}`;
-          try {
-            await cache.put(key, r.value.ok ? '1' : '0', { expirationTtl: 7200 });
-          } catch { /* KV rate limit, ignore */ }
-        }
-      }
-    }
-  } else {
-    // No cache available — assume all valid (don't block on HEAD checks)
-    for (const e of allEmojiCandidates) {
-      verifiedEmojis.set(e.url, true);
-    }
-  }
-
-  // Build emoji arrays per status, only including verified-accessible emojis
-  for (const { statusId, shortcode, url } of allEmojiCandidates) {
-    const isValid = verifiedEmojis.get(url) ?? true; // default to true if somehow missing
-    if (!isValid) continue; // Skip broken emoji URLs — client won't see them
-
-    const proxyUrl = proxyEmojiUrl(url, domain);
-    if (!statusEmojiMap.has(statusId)) statusEmojiMap.set(statusId, []);
-    statusEmojiMap.get(statusId)!.push({
-      shortcode,
-      url: proxyUrl,
-      static_url: proxyUrl,
-      visible_in_picker: false,
-    });
   }
 
   // Assign emojis to enrichment results

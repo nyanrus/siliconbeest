@@ -11,6 +11,7 @@ import {
   Image,
   Document as APDocument,
   Source,
+  Emoji as APEmoji,
 } from '@fedify/vocab';
 import { Temporal } from '@js-temporal/polyfill';
 import { generateUlid } from '../../../../utils/ulid';
@@ -281,7 +282,24 @@ app.put('/:id', authRequired, async (c) => {
 
         if (replyTarget) noteValues.replyTarget = replyTarget;
 
-        const allTags = [...mentionTags, ...hashtagTags];
+        // Build custom emoji tags for federation
+        const emojiTagObjects: APEmoji[] = [];
+        const editEmojiTags = updatedRow.emoji_tags as string | null;
+        if (editEmojiTags) {
+          try {
+            const parsed = JSON.parse(editEmojiTags) as Array<{ shortcode: string; url: string }>;
+            for (const et of parsed) {
+              if (!et.shortcode || !et.url) continue;
+              emojiTagObjects.push(new APEmoji({
+                id: new URL(et.url),
+                name: `:${et.shortcode}:`,
+                icon: new Image({ url: new URL(et.url), mediaType: 'image/png' }),
+              }));
+            }
+          } catch { /* ignore */ }
+        }
+
+        const allTags = [...mentionTags, ...hashtagTags, ...emojiTagObjects];
         if (allTags.length > 0) noteValues.tags = allTags;
         if (mediaAttachmentObjects.length > 0) noteValues.attachments = mediaAttachmentObjects;
 
