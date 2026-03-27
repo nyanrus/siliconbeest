@@ -238,6 +238,7 @@ app.post('/', authRequired, async (c) => {
   interface ResolvedMention {
     account_id: string;
     actor_uri: string;
+    profile_url: string | null;
     acct: string;
     inbox_url: string | null;
     mentionDomain: string | null;
@@ -251,7 +252,7 @@ app.post('/', authRequired, async (c) => {
     if (mention.domain) {
       // Federated mention: @user@domain  --  look up by username+domain
       accountRow = await c.env.DB.prepare(
-        'SELECT id, uri, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
+        'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
       ).bind(mention.username, mention.domain).first();
 
       // If not found locally, try WebFinger resolution via Fedify
@@ -286,7 +287,7 @@ app.post('/', authRequired, async (c) => {
     } else {
       // Local mention: @user
       accountRow = await c.env.DB.prepare(
-        'SELECT id, uri, inbox_url, domain FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
+        'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username = ?1 AND domain IS NULL LIMIT 1',
       ).bind(mention.username).first();
     }
 
@@ -303,6 +304,7 @@ app.post('/', authRequired, async (c) => {
     resolvedMentions.push({
       account_id: mentionedAccountId,
       actor_uri: (accountRow.uri as string) || '',
+      profile_url: (accountRow.url as string) || null,
       acct: mention.acct,
       inbox_url: (accountRow.inbox_url as string) || null,
       mentionDomain: (accountRow.domain as string) || null,
@@ -329,13 +331,13 @@ app.post('/', authRequired, async (c) => {
   let fixedContent = content;
   for (const rm of resolvedMentions) {
     if (rm.mentionDomain && rm.actor_uri) {
-      // Get the actor's profile URL (actor_uri is like https://kokonect.link/users/SJang)
-      const actorUrl = rm.actor_uri.replace('/users/', '/@').replace('/user/', '/@');
+      // Use the profile URL from DB (correct for all server types including Misskey)
+      // Fallback to actor_uri only if profile_url is missing
+      const profileUrl = rm.profile_url || rm.actor_uri;
       const localProxyUrl = `https://${domain}/@${rm.acct}`;
-      // Replace both the href and keep the display the same
       fixedContent = fixedContent.replace(
         `href="${localProxyUrl}"`,
-        `href="${actorUrl}"`,
+        `href="${profileUrl}"`,
       );
     }
   }
