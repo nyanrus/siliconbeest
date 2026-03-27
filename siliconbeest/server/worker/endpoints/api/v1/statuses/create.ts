@@ -121,6 +121,7 @@ app.post('/', authRequired, async (c) => {
 
   // Detect custom emojis in content text (both status text and CW)
   let emojiTagsJson: string | null = null;
+  let resolvedEmojiTags: Array<{ shortcode: string; url: string; static_url: string; visible_in_picker: boolean }> = [];
   const emojiMatches = [...new Set(
     [...(statusText || '').matchAll(/:([a-zA-Z0-9_]+):/g),
      ...((spoilerText || '').matchAll(/:([a-zA-Z0-9_]+):/g))].map(m => m[1])
@@ -131,12 +132,12 @@ app.post('/', authRequired, async (c) => {
       `SELECT shortcode, domain, image_key FROM custom_emojis WHERE shortcode IN (${placeholders}) AND (domain IS NULL OR domain = ?${emojiMatches.length + 1})`,
     ).bind(...emojiMatches, domain).all<{ shortcode: string; domain: string | null; image_key: string }>();
     if (emojiRows.results.length > 0) {
-      const emojiTags = emojiRows.results.map(e => {
+      resolvedEmojiTags = emojiRows.results.map(e => {
         const isLocal = !e.domain || e.domain === domain;
         const url = isLocal ? `https://${domain}/media/${e.image_key}` : e.image_key;
-        return { shortcode: e.shortcode, url, static_url: url };
+        return { shortcode: e.shortcode, url, static_url: url, visible_in_picker: false };
       });
-      emojiTagsJson = JSON.stringify(emojiTags);
+      emojiTagsJson = JSON.stringify(resolvedEmojiTags.map(e => ({ shortcode: e.shortcode, url: e.url, static_url: e.static_url })));
     }
   }
 
@@ -779,7 +780,7 @@ app.post('/', authRequired, async (c) => {
       acct: rm.acct,
     })),
     tags: hashtags.map((t) => ({ name: t, url: `https://${domain}/tags/${t}` })),
-    emojis: [],
+    emojis: resolvedEmojiTags,
     card: null,
     poll: null,
     edited_at: null,
