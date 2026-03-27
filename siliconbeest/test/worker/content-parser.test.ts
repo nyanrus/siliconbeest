@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseContent } from '../src/utils/contentParser';
+import { parseContent } from '../../server/worker/utils/contentParser';
 
 const DOMAIN = 'test.siliconbeest.local';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeHtml } from '../src/utils/sanitize';
+import { sanitizeHtml } from '../../server/worker/utils/sanitize';
 
 describe('sanitizeHtml', () => {
   // -------------------------------------------------------------------

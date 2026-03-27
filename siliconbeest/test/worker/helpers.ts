@@ -41,27 +41,27 @@ async function getTestKeyPair(): Promise<{ publicPem: string; privatePem: string
 // Import all migration SQL files at build time using Vite's ?raw imports.
 // This keeps test schema in sync with production migrations automatically.
 // When adding a new migration file, add an import here.
-import m0001 from '../migrations/0001_initial_schema.sql?raw';
-import m0002 from '../migrations/0002_relays.sql?raw';
-import m0003 from '../migrations/0003_status_mutes.sql?raw';
-import m0004 from '../migrations/0004_emoji_reactions.sql?raw';
-import m0005 from '../migrations/0005_announcements_published_at.sql?raw';
-import m0006 from '../migrations/0006_instances_health.sql?raw';
-import m0007 from '../migrations/0007_accounts_inbox.sql?raw';
-import m0008 from '../migrations/0008_preview_cards.sql?raw';
-import m0009a from '../migrations/0009_accounts_fields.sql?raw';
-import m0009b from '../migrations/0009_accounts_remote_columns.sql?raw';
-import m0010 from '../migrations/0010_reports_assigned.sql?raw';
-import m0011 from '../migrations/0011_conversations_ap_uri.sql?raw';
-import m0012 from '../migrations/0012_ed25519_keys.sql?raw';
-import m0013 from '../migrations/0013_quote_posts.sql?raw';
-import m0014 from '../migrations/0014_notification_emoji.sql?raw';
-import m0015 from '../migrations/0015_statuses_pinned.sql?raw';
-import m0016 from '../migrations/0016_account_migration.sql?raw';
-import m0017 from '../migrations/0017_email_verification_passkeys.sql?raw';
-import m0018 from '../migrations/0018_media_proxy_cache.sql?raw';
-import m0020 from '../migrations/0020_emoji_payload_jit.sql?raw';
-import m0021 from '../migrations/0021_accounts_emoji_tags.sql?raw';
+import m0001 from '../../migrations/0001_initial_schema.sql?raw';
+import m0002 from '../../migrations/0002_relays.sql?raw';
+import m0003 from '../../migrations/0003_status_mutes.sql?raw';
+import m0004 from '../../migrations/0004_emoji_reactions.sql?raw';
+import m0005 from '../../migrations/0005_announcements_published_at.sql?raw';
+import m0006 from '../../migrations/0006_instances_health.sql?raw';
+import m0007 from '../../migrations/0007_accounts_inbox.sql?raw';
+import m0008 from '../../migrations/0008_preview_cards.sql?raw';
+import m0009a from '../../migrations/0009_accounts_fields.sql?raw';
+import m0009b from '../../migrations/0009_accounts_remote_columns.sql?raw';
+import m0010 from '../../migrations/0010_reports_assigned.sql?raw';
+import m0011 from '../../migrations/0011_conversations_ap_uri.sql?raw';
+import m0012 from '../../migrations/0012_ed25519_keys.sql?raw';
+import m0013 from '../../migrations/0013_quote_posts.sql?raw';
+import m0014 from '../../migrations/0014_notification_emoji.sql?raw';
+import m0015 from '../../migrations/0015_statuses_pinned.sql?raw';
+import m0016 from '../../migrations/0016_account_migration.sql?raw';
+import m0017 from '../../migrations/0017_email_verification_passkeys.sql?raw';
+import m0018 from '../../migrations/0018_media_proxy_cache.sql?raw';
+import m0020 from '../../migrations/0020_emoji_payload_jit.sql?raw';
+import m0021 from '../../migrations/0021_accounts_emoji_tags.sql?raw';
 
 const MIGRATIONS: string[] = [
   m0001, m0002, m0003, m0004, m0005, m0006, m0007, m0008,

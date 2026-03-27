@@ -10,8 +10,8 @@ import {
   serializeTag,
   serializeFilter,
   serializeMarker,
-} from '../src/utils/mastodonSerializer';
-import type { AccountRow, StatusRow, MediaAttachmentRow, NotificationRow, PollRow, ListRow, TagRow, FilterRow, MarkerRow } from '../src/types/db';
+} from '../../server/worker/utils/mastodonSerializer';
+import type { AccountRow, StatusRow, MediaAttachmentRow, NotificationRow, PollRow, ListRow, TagRow, FilterRow, MarkerRow } from '../../server/worker/types/db';
 
 // ---------------------------------------------------------------------------
 // Fixtures

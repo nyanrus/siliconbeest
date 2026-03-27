@@ -10,7 +10,7 @@ import {
 	encodeEd25519PublicKeyMultibase,
 	decodeEd25519PublicKeyMultibase,
 	base64UrlToBytes,
-} from '../src/utils/crypto';
+} from '../../server/worker/utils/crypto';
 
 describe('Ed25519 Crypto Utilities', () => {
 	// ---------------------------------------------------------------

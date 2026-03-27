@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateUlid, isValidUlid, ulidToDate } from '../src/utils/ulid';
+import { generateUlid, isValidUlid, ulidToDate } from '../../server/worker/utils/ulid';
 
 describe('ULID utilities', () => {
   // -------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../src/utils/pagination';
+import { parsePaginationParams, buildPaginationQuery, buildLinkHeader } from '../../server/worker/utils/pagination';
 
 describe('pagination utilities', () => {
   // -------------------------------------------------------------------

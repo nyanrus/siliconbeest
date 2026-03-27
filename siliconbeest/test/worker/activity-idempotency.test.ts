@@ -1,9 +1,9 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser } from './helpers';
-import { processLike } from '../src/federation/inboxProcessors/like';
-import { processFollow } from '../src/federation/inboxProcessors/follow';
-import type { APActivity } from '../src/types/activitypub';
+import { processLike } from '../../server/worker/federation/inboxProcessors/like';
+import { processFollow } from '../../server/worker/federation/inboxProcessors/follow';
+import type { APActivity } from '../../server/worker/types/activitypub';
 
 const DOMAIN = 'test.siliconbeest.local';
 
