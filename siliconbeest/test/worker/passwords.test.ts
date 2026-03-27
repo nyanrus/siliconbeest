@@ -1,7 +1,7 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
-import { hashPassword } from '../src/utils/crypto';
+import { hashPassword } from '../../server/worker/utils/crypto';
 
 const BASE = 'https://test.siliconbeest.local';
 

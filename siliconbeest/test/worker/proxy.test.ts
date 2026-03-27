@@ -1,8 +1,8 @@
 import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { applyMigration } from './helpers';
-import { serializeAccount } from '../src/utils/mastodonSerializer';
-import type { AccountRow } from '../src/types/db';
+import { serializeAccount } from '../../server/worker/utils/mastodonSerializer';
+import type { AccountRow } from '../../server/worker/types/db';
 
 // ---------------------------------------------------------------------------
 // Fixtures

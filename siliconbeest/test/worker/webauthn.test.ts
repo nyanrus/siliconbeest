@@ -1,8 +1,8 @@
 import { env, SELF } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { applyMigration, createTestUser, authHeaders } from './helpers';
-import { decodeCBOR } from '../src/utils/cbor';
-import { base64urlEncode, base64urlDecode } from '../src/utils/webauthn';
+import { decodeCBOR } from '../../server/worker/utils/cbor';
+import { base64urlEncode, base64urlDecode } from '../../server/worker/utils/webauthn';
 
 /**
  * WebAuthn / Passkey tests.

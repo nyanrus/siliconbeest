@@ -11,7 +11,9 @@
 		"type-check": "vue-tsc --build",
 		"deploy": "npm run build && wrangler deploy",
 		"cf-typegen": "wrangler types",
-		"test": "vitest run --config vitest.config.ts",
+		"test": "vitest run --config vitest.config.ts && vitest run --config vitest.worker.config.ts",
+		"test:vue": "vitest run --config vitest.config.ts",
+		"test:worker": "vitest run --config vitest.worker.config.ts",
 		"test:watch": "vitest --config vitest.config.ts"
 	},
 	"dependencies": {
