@@ -221,19 +221,27 @@ app.post('/', authRequired, async (c) => {
 
     const existingTagMap = new Map(existingTags.results.map(t => [t.name, t.id]));
     const newTagsToInsert: Array<{ id: string; name: string }> = [];
+    const existingTagIdsToUpdate: string[] = [];
     const allTagIds: string[] = [];
 
     for (const tag of hashtags) {
       let tagId: string;
       if (existingTagMap.has(tag)) {
         tagId = existingTagMap.get(tag)!;
-        // Queue update for existing tag
-        await c.env.DB.prepare('UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id = ?2').bind(now, tagId).run();
+        existingTagIdsToUpdate.push(tagId);
       } else {
         tagId = generateULID();
         newTagsToInsert.push({ id: tagId, name: tag });
       }
       allTagIds.push(tagId);
+    }
+
+    // Batch UPDATE all existing tags
+    if (existingTagIdsToUpdate.length > 0) {
+      const placeholders = existingTagIdsToUpdate.map(() => '?').join(',');
+      await c.env.DB.prepare(
+        `UPDATE tags SET last_status_at = ?1, updated_at = ?1 WHERE id IN (${placeholders})`
+      ).bind(now, ...existingTagIdsToUpdate).run();
     }
 
     // Batch INSERT all new tags at once
@@ -294,14 +302,24 @@ app.post('/', authRequired, async (c) => {
       });
     }
 
-    // Parallelize WebFinger lookups and resolve remote accounts
-    const remoteMentionPromises = remoteMentions.map(async (mention) => {
-      let accountRow: Record<string, unknown> | null = null;
+    // Batch-query for known remote accounts
+    const remoteAccountMap = new Map<string, Record<string, unknown>>();
+    if (remoteMentions.length > 0) {
+      const conditions = remoteMentions.map(() => `(username = ? AND domain = ?)`).join(' OR ');
+      const values = remoteMentions.flatMap(m => [m.username, m.domain!]);
+      const query = `SELECT id, uri, url, inbox_url, domain, username FROM accounts WHERE ${conditions}`;
+      const existingRemoteAccounts = await c.env.DB.prepare(query)
+        .bind(...values)
+        .all<Record<string, unknown>>();
 
-      // Try local lookup first
-      accountRow = await c.env.DB.prepare(
-        'SELECT id, uri, url, inbox_url, domain FROM accounts WHERE username = ?1 AND domain = ?2 LIMIT 1',
-      ).bind(mention.username, mention.domain).first();
+      existingRemoteAccounts.results.forEach(acc => {
+        remoteAccountMap.set(`${acc.username}@${acc.domain}`, acc);
+      });
+    }
+
+    // Parallelize WebFinger lookups for new remote accounts
+    const remoteMentionPromises = remoteMentions.map(async (mention) => {
+      let accountRow = remoteAccountMap.get(`${mention.username}@${mention.domain}`) ?? null;
 
       // If not found locally, try WebFinger resolution via Fedify
       if (!accountRow) {
