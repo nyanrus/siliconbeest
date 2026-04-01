@@ -20,6 +20,10 @@ import unmuteApp from './unmute';
 import aliasesApp from './aliases';
 import migrationApp from './migration';
 import { authRequired } from '../../../../middleware/auth';
+import { AppError } from '../../../../middleware/errorHandler';
+import { generateUlid } from '../../../../utils/ulid';
+import { serializeAccount } from '../../../../utils/mastodonSerializer';
+import type { AccountRow } from '../../../../types/db';
 
 const accounts = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -35,6 +39,194 @@ accounts.get('/:id/lists', authRequired, async (c) => {
   return c.json((results ?? []).map((r: any) => ({
     id: r.id, title: r.title, replies_policy: r.replies_policy || 'list',
   })));
+});
+
+// POST /api/v1/accounts/:id/note — set personal note on account
+accounts.post('/:id/note', authRequired, async (c) => {
+  const currentAccount = c.get('currentAccount')!;
+  const targetId = c.req.param('id');
+  const body = await c.req.json<{ comment?: string }>();
+  const comment = (body.comment ?? '').slice(0, 2000);
+
+  const target = await c.env.DB.prepare('SELECT id FROM accounts WHERE id = ?1').bind(targetId).first();
+  if (!target) throw new AppError(404, 'Record not found');
+
+  const now = new Date().toISOString();
+  if (comment) {
+    await c.env.DB.prepare(
+      `INSERT INTO account_notes (id, account_id, target_account_id, comment, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(account_id, target_account_id) DO UPDATE SET comment = ?4, updated_at = ?6`,
+    ).bind(generateUlid(), currentAccount.id, targetId, comment, now, now).run();
+  } else {
+    await c.env.DB.prepare(
+      'DELETE FROM account_notes WHERE account_id = ?1 AND target_account_id = ?2',
+    ).bind(currentAccount.id, targetId).run();
+  }
+
+  // Return updated relationship
+  const [following, followedBy, blocking, muting] = await Promise.all([
+    c.env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+    c.env.DB.prepare('SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2').bind(targetId, currentAccount.id).first(),
+    c.env.DB.prepare('SELECT id FROM blocks WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+    c.env.DB.prepare('SELECT id FROM mutes WHERE account_id = ?1 AND target_account_id = ?2').bind(currentAccount.id, targetId).first(),
+  ]);
+
+  return c.json({
+    id: targetId,
+    following: !!following,
+    showing_reblogs: true,
+    notifying: false,
+    languages: null,
+    followed_by: !!followedBy,
+    blocking: !!blocking,
+    blocked_by: false,
+    muting: !!muting,
+    muting_notifications: false,
+    requested: false,
+    requested_by: false,
+    domain_blocking: false,
+    endorsed: false,
+    note: comment,
+  });
+});
+
+// POST /api/v1/accounts/:id/remove_from_followers — force-remove a follower
+accounts.post('/:id/remove_from_followers', authRequired, async (c) => {
+  const currentAccount = c.get('currentAccount')!;
+  const targetId = c.req.param('id');
+
+  await c.env.DB.prepare(
+    'DELETE FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
+  ).bind(targetId, currentAccount.id).run();
+
+  // Decrement counters
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE accounts SET followers_count = MAX(0, followers_count - 1) WHERE id = ?1').bind(currentAccount.id),
+    c.env.DB.prepare('UPDATE accounts SET following_count = MAX(0, following_count - 1) WHERE id = ?1').bind(targetId),
+  ]);
+
+  return c.json({
+    id: targetId,
+    following: false,
+    showing_reblogs: true,
+    notifying: false,
+    languages: null,
+    followed_by: false,
+    blocking: false,
+    blocked_by: false,
+    muting: false,
+    muting_notifications: false,
+    requested: false,
+    requested_by: false,
+    domain_blocking: false,
+    endorsed: false,
+    note: '',
+  });
+});
+
+// POST /api/v1/accounts/:id/pin — endorse/feature account on profile
+accounts.post('/:id/pin', authRequired, async (c) => {
+  const currentAccount = c.get('currentAccount')!;
+  const targetId = c.req.param('id');
+
+  const target = await c.env.DB.prepare('SELECT * FROM accounts WHERE id = ?1').bind(targetId).first();
+  if (!target) throw new AppError(404, 'Record not found');
+
+  // Must be following to endorse
+  const follow = await c.env.DB.prepare(
+    'SELECT id FROM follows WHERE account_id = ?1 AND target_account_id = ?2',
+  ).bind(currentAccount.id, targetId).first();
+  if (!follow) throw new AppError(422, 'Validation failed: you must be following this account to endorse it');
+
+  const existing = await c.env.DB.prepare(
+    'SELECT id FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2',
+  ).bind(currentAccount.id, targetId).first();
+
+  if (!existing) {
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(
+      'INSERT INTO account_pins (id, account_id, target_account_id, created_at) VALUES (?1, ?2, ?3, ?4)',
+    ).bind(generateUlid(), currentAccount.id, targetId, now).run();
+  }
+
+  return c.json({
+    id: targetId,
+    following: true,
+    showing_reblogs: true,
+    notifying: false,
+    languages: null,
+    followed_by: false,
+    blocking: false,
+    blocked_by: false,
+    muting: false,
+    muting_notifications: false,
+    requested: false,
+    requested_by: false,
+    domain_blocking: false,
+    endorsed: true,
+    note: '',
+  });
+});
+
+// POST /api/v1/accounts/:id/unpin — remove endorsement
+accounts.post('/:id/unpin', authRequired, async (c) => {
+  const currentAccount = c.get('currentAccount')!;
+  const targetId = c.req.param('id');
+
+  await c.env.DB.prepare(
+    'DELETE FROM account_pins WHERE account_id = ?1 AND target_account_id = ?2',
+  ).bind(currentAccount.id, targetId).run();
+
+  return c.json({
+    id: targetId,
+    following: false,
+    showing_reblogs: true,
+    notifying: false,
+    languages: null,
+    followed_by: false,
+    blocking: false,
+    blocked_by: false,
+    muting: false,
+    muting_notifications: false,
+    requested: false,
+    requested_by: false,
+    domain_blocking: false,
+    endorsed: false,
+    note: '',
+  });
+});
+
+// GET /api/v1/accounts/familiar_followers — mutual followers
+accounts.get('/familiar_followers', authRequired, async (c) => {
+  const currentAccount = c.get('currentAccount')!;
+  const domain = c.env.INSTANCE_DOMAIN;
+  const url = new URL(c.req.url);
+  const ids = url.searchParams.getAll('id[]');
+
+  if (ids.length === 0) return c.json([]);
+
+  const result = await Promise.all(
+    ids.map(async (targetId) => {
+      const { results } = await c.env.DB.prepare(
+        `SELECT a.* FROM follows f1
+         JOIN follows f2 ON f2.account_id = f1.account_id AND f2.target_account_id = ?2
+         JOIN accounts a ON a.id = f1.account_id
+         WHERE f1.target_account_id = ?1
+           AND f1.account_id != ?1 AND f1.account_id != ?2
+         LIMIT 5`,
+      ).bind(currentAccount.id, targetId).all();
+
+      return {
+        id: targetId,
+        accounts: (results ?? []).map((r: any) =>
+          serializeAccount(r as AccountRow, { instanceDomain: domain }),
+        ),
+      };
+    }),
+  );
+
+  return c.json(result);
 });
 
 // POST /api/v1/accounts — registration

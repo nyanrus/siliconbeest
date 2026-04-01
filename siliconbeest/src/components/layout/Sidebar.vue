@@ -24,6 +24,8 @@ const navItems = [
   { key: 'bookmarks', path: '/bookmarks', icon: '🔖' },
   { key: 'favourites', path: '/favourites', icon: '⭐' },
   { key: 'lists', path: '/lists', icon: '📋' },
+  { key: 'followed_tags', path: '/followed_tags', icon: '#️⃣' },
+  { key: 'directory', path: '/directory', icon: '📖' },
 ]
 
 const myProfilePath = computed(() => {

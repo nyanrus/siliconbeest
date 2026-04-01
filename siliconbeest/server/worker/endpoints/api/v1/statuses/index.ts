@@ -19,6 +19,8 @@ import unmuteApp from './unmute';
 import favouritedByApp from './favouritedBy';
 import rebloggedByApp from './rebloggedBy';
 import reactionsApp from './reactions';
+import historyApp from './history';
+import sourceApp from './source';
 
 const statuses = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -77,5 +79,11 @@ statuses.route('/', rebloggedByApp);
 // DELETE /api/v1/statuses/:id/react/:emoji
 // GET /api/v1/statuses/:id/reactions
 statuses.route('/', reactionsApp);
+
+// GET /api/v1/statuses/:id/history
+statuses.route('/', historyApp);
+
+// GET /api/v1/statuses/:id/source
+statuses.route('/', sourceApp);
 
 export default statuses;

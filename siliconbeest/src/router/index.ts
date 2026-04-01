@@ -144,6 +144,17 @@ const router = createRouter({
       component: () => import('@/views/FollowRequestsView.vue'),
       beforeEnter: requireAuth,
     },
+    {
+      path: '/followed_tags',
+      name: 'followed-tags',
+      component: () => import('../views/FollowedTagsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/directory',
+      name: 'directory',
+      component: () => import('../views/DirectoryView.vue'),
+    },
 
     // Settings routes
     {

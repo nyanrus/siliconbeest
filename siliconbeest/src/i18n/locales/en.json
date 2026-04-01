@@ -119,7 +119,9 @@
     "admin": "Administration",
     "about": "About",
     "conversations": "Conversations",
-    "follow_requests": "Follow Requests"
+    "follow_requests": "Follow Requests",
+    "followed_tags": "Followed Tags",
+    "directory": "Directory"
   },
   "explore": {
     "trending": "Trending",
@@ -710,6 +712,36 @@
     "success": "Report submitted successfully",
     "error": "Failed to submit report",
     "select_rules": "Which rules does this violate?"
+  },
+  "discovery": {
+    "followed_tags": "Followed hashtags",
+    "followed_tags_empty": "You are not following any hashtags yet.",
+    "unfollow_tag": "Unfollow",
+    "follow_tag": "Follow",
+    "directory": "Profile directory",
+    "directory_description": "Discover people on this server",
+    "directory_order_active": "Recently active",
+    "directory_order_new": "Recently joined",
+    "directory_local_only": "Local only",
+    "trending_links": "Trending links",
+    "trending_links_empty": "No trending links right now.",
+    "featured_tags": "Featured hashtags",
+    "featured_tags_description": "Hashtags featured on your profile",
+    "featured_tags_empty": "You haven't featured any hashtags yet.",
+    "add_featured_tag": "Add featured hashtag",
+    "endorsements": "Featured accounts",
+    "endorsements_empty": "You haven't featured any accounts yet.",
+    "familiar_followers": "Followed by {names}",
+    "domain_blocks": "Blocked domains",
+    "domain_blocks_empty": "You haven't blocked any domains.",
+    "block_domain": "Block domain",
+    "unblock_domain": "Unblock",
+    "account_note_placeholder": "Add a personal note about this account...",
+    "account_note_saved": "Note saved",
+    "edit_history": "Edit history",
+    "edit_history_empty": "This post has not been edited.",
+    "remove_follower": "Remove follower",
+    "remove_follower_confirm": "Are you sure you want to remove this follower?"
   },
   "oauth": {
     "authorize_app": "Authorize Application",

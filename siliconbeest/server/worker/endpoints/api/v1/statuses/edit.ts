@@ -97,6 +97,29 @@ app.put('/:id', authRequired, requireScope('write:statuses'), async (c) => {
   const content = renderContent(statusText);
   const mediaIds = body.media_ids || [];
 
+  // Save current state as an edit history snapshot before applying changes
+  const { results: currentMedia } = await c.env.DB.prepare(
+    'SELECT * FROM media_attachments WHERE status_id = ?1',
+  ).bind(statusId).all();
+  const mediaSnapshot = (currentMedia ?? []).map((m: any) => ({
+    id: m.id, type: m.type || 'image',
+    url: `https://${domain}/media/${m.file_key}`,
+    preview_url: m.thumbnail_key ? `https://${domain}/media/${m.thumbnail_key}` : `https://${domain}/media/${m.file_key}`,
+    description: m.description || null, blurhash: m.blurhash || null,
+  }));
+
+  await c.env.DB.prepare(
+    `INSERT INTO status_edits (id, status_id, content, spoiler_text, sensitive, media_attachments_json, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+  ).bind(
+    generateUlid(), statusId,
+    (row.content as string) || '',
+    (row.content_warning as string) || '',
+    row.sensitive as number,
+    JSON.stringify(mediaSnapshot),
+    (row.edited_at as string) || (row.created_at as string),
+  ).run();
+
   const stmts = [
     c.env.DB.prepare(
       `UPDATE statuses SET text = ?1, content = ?2, content_warning = ?3, sensitive = ?4, language = ?5, edited_at = ?6, updated_at = ?6 WHERE id = ?7`,

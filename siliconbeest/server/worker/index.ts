@@ -68,6 +68,11 @@ import rules from './endpoints/api/v1/rules';
 import trends from './endpoints/api/v1/trends/index';
 import csvExport from './endpoints/api/v1/export';
 import csvImport from './endpoints/api/v1/import';
+import followedTags from './endpoints/api/v1/followedTags';
+import featuredTags from './endpoints/api/v1/featuredTags';
+import directory from './endpoints/api/v1/directory';
+import userDomainBlocks from './endpoints/api/v1/domainBlocks';
+import endorsements from './endpoints/api/v1/endorsements';
 
 // -- Auth --
 import passwords from './endpoints/api/v1/auth/passwords';
@@ -271,6 +276,11 @@ app.route('/api/v1/follow_requests', followRequests);
 app.route('/api/v1/lists', lists);
 app.route('/api/v1/tags', tags);
 app.route('/api/v1/suggestions', suggestions);
+app.route('/api/v1/followed_tags', followedTags);
+app.route('/api/v1/featured_tags', featuredTags);
+app.route('/api/v1/directory', directory);
+app.route('/api/v1/domain_blocks', userDomainBlocks);
+app.route('/api/v1/endorsements', endorsements);
 app.route('/api/v1/announcements', announcements);
 app.route('/api/v1/instance/peers', instancePeers);
 app.route('/api/v1/instance/activity', instanceActivity);

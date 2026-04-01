@@ -47,6 +47,7 @@ export function setupCollectionDispatchers(
   setupOutboxDispatcher(federation);
   setupFeaturedDispatcher(federation);
   setupFeaturedTagsDispatcher(federation);
+  setupLikedDispatcher(federation);
 }
 
 // ============================================================
@@ -547,10 +548,118 @@ function setupFeaturedTagsDispatcher(
 
       if (!account) return null;
 
-      // Currently returns an empty collection (matches existing endpoint)
-      return { items: [] as Hashtag[] };
+      const domain = ctx.data.env.INSTANCE_DOMAIN;
+
+      // Fetch real featured tags for this account (gracefully handle missing table)
+      try {
+        const { results } = await db
+          .prepare(
+            `SELECT t.name FROM featured_tags ft
+             JOIN tags t ON t.id = ft.tag_id
+             WHERE ft.account_id = ?1
+             ORDER BY ft.created_at DESC`,
+          )
+          .bind(account.id)
+          .all<{ name: string }>();
+
+        const items = (results ?? []).map(
+          (r) =>
+            new Hashtag({
+              name: `#${r.name}`,
+              href: new URL(`https://${domain}/tags/${r.name}`),
+            }),
+        );
+
+        return { items };
+      } catch {
+        // Table may not exist yet (pre-migration 0023)
+        return { items: [] as Hashtag[] };
+      }
     },
   );
+}
+
+// ============================================================
+// LIKED
+// ============================================================
+
+const LIKED_PAGE_SIZE = 20;
+
+function setupLikedDispatcher(
+  federation: Federation<FedifyContextData>,
+): void {
+  federation
+    .setLikedDispatcher(
+      '/users/{identifier}/liked',
+      async (ctx, identifier, cursor) => {
+        const db = ctx.data.env.DB;
+
+        const account = await db
+          .prepare(
+            `SELECT id FROM accounts
+             WHERE username = ?1 AND domain IS NULL LIMIT 1`,
+          )
+          .bind(identifier)
+          .first<{ id: string }>();
+
+        if (!account) return null;
+
+        const conditions: string[] = ['l.account_id = ?1'];
+        const binds: (string | number)[] = [account.id];
+
+        if (cursor) {
+          conditions.push('l.id < ?2');
+          binds.push(cursor);
+        }
+
+        const sql = `
+          SELECT l.id AS like_id, s.uri
+          FROM favourites l
+          JOIN statuses s ON s.id = l.status_id
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY l.id DESC
+          LIMIT ?${binds.length + 1}
+        `;
+        binds.push(LIKED_PAGE_SIZE + 1);
+
+        const { results } = await db
+          .prepare(sql)
+          .bind(...binds)
+          .all<{ like_id: string; uri: string }>();
+
+        const rows = results ?? [];
+        const hasNext = rows.length > LIKED_PAGE_SIZE;
+        const items = hasNext ? rows.slice(0, LIKED_PAGE_SIZE) : rows;
+
+        const nextCursor = hasNext
+          ? items[items.length - 1].like_id
+          : null;
+
+        return {
+          items: items.map((r) => new URL(r.uri)),
+          nextCursor,
+        };
+      },
+    )
+    .setCounter(async (ctx, identifier) => {
+      const db = ctx.data.env.DB;
+      const account = await db
+        .prepare(
+          `SELECT id FROM accounts
+           WHERE username = ?1 AND domain IS NULL LIMIT 1`,
+        )
+        .bind(identifier)
+        .first<{ id: string }>();
+      if (!account) return 0;
+      const row = await db
+        .prepare('SELECT COUNT(*) AS cnt FROM favourites WHERE account_id = ?1')
+        .bind(account.id)
+        .first<{ cnt: number }>();
+      return row?.cnt ?? 0;
+    })
+    .setFirstCursor(async (_ctx, _identifier) => {
+      return '';
+    });
 }
 
 // ============================================================
