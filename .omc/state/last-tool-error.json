@@ -1,7 +1,0 @@
-{
-  "tool_name": "Read",
-  "tool_input_preview": "{\"file_path\":\"/Users/siliconsjang/Workspace/siliconbeest/siliconbeest/src/i18n/locales/ko.json\"}",
-  "error": "File content (11930 tokens) exceeds maximum allowed tokens (10000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
-  "timestamp": "2026-04-01T03:52:00.335Z",
-  "retry_count": 1
-}
