@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { apiClient } from '../api/client';
+import { apiFetch, buildQueryString } from '@/api/client';
+import { useAuthStore } from '@/stores/auth';
 
 const { t } = useI18n();
+const auth = useAuthStore();
 
 const accounts = ref<any[]>([]);
 const loading = ref(true);
@@ -13,10 +15,15 @@ const localOnly = ref(true);
 async function loadDirectory() {
   loading.value = true;
   try {
-    const res = await apiClient.get('/api/v1/directory', {
-      params: { order: order.value, local: localOnly.value, limit: 40 },
+    const qs = buildQueryString({
+      order: order.value,
+      local: String(localOnly.value),
+      limit: '40',
     });
-    accounts.value = res.data;
+    const { data } = await apiFetch<any[]>(`/v1/directory${qs}`, {
+      token: auth.token ?? undefined,
+    });
+    accounts.value = data;
   } catch (e) {
     console.error('Failed to load directory:', e);
   } finally {

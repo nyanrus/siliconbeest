@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { apiClient } from '../api/client';
+import { apiFetch } from '@/api/client';
+import { useAuthStore } from '@/stores/auth';
 
 const { t } = useI18n();
+const auth = useAuthStore();
 
 interface FollowedTag {
   name: string;
@@ -17,8 +19,10 @@ const loading = ref(true);
 async function loadTags() {
   loading.value = true;
   try {
-    const res = await apiClient.get('/api/v1/followed_tags');
-    tags.value = res.data;
+    const { data } = await apiFetch<FollowedTag[]>('/v1/followed_tags', {
+      token: auth.token ?? undefined,
+    });
+    tags.value = data;
   } catch (e) {
     console.error('Failed to load followed tags:', e);
   } finally {
@@ -28,7 +32,10 @@ async function loadTags() {
 
 async function unfollowTag(tagName: string) {
   try {
-    await apiClient.post(`/api/v1/tags/${tagName}/unfollow`);
+    await apiFetch(`/v1/tags/${tagName}/unfollow`, {
+      token: auth.token ?? undefined,
+      method: 'POST',
+    });
     tags.value = tags.value.filter((t) => t.name !== tagName);
   } catch (e) {
     console.error('Failed to unfollow tag:', e);
