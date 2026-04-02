@@ -8,7 +8,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 function parseFields(raw: string | null): Array<{ name: string; value: string; verified_at: string | null }> {
   if (!raw) return [];
-  try { return JSON.parse(raw); } catch { return []; }
+  return JSON.parse(raw);
 }
 
 const app = new Hono<HonoEnv>();

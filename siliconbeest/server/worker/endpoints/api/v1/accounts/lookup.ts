@@ -8,7 +8,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
 function safeJsonParse<T>(val: string | null, fallback: T): T {
   if (!val) return fallback;
-  try { return JSON.parse(val); } catch { return fallback; }
+  return JSON.parse(val);
 }
 
 const app = new Hono<HonoEnv>();

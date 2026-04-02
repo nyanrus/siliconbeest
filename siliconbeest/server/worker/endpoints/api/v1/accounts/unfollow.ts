@@ -37,20 +37,18 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
 
     // Send Undo(Follow) to remote server
     if (target.domain) {
-      try {
-        const originalFollow = new Follow({
-          id: new URL((follow.uri as string) || `https://${domain}/activities/${generateUlid()}`),
-          actor: new URL(actorUri),
-          object: new URL(targetUri),
-        });
-        const undo = new Undo({
-          id: new URL(`https://${domain}/activities/${generateUlid()}`),
-          actor: new URL(actorUri),
-          object: originalFollow,
-        });
-        const fed = c.get('federation');
-        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
-      } catch (_) { /* don't fail the API response */ }
+      const originalFollow = new Follow({
+        id: new URL((follow.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(actorUri),
+        object: new URL(targetUri),
+      });
+      const undo = new Undo({
+        id: new URL(`https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(actorUri),
+        object: originalFollow,
+      });
+      const fed = c.get('federation');
+      await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
     }
   }
 
@@ -66,20 +64,18 @@ app.post('/:id/unfollow', authRequired, requireScope('write:follows'), async (c)
 
     // Send Undo(Follow) for pending request too
     if (target.domain) {
-      try {
-        const frFollow = new Follow({
-          id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
-          actor: new URL(actorUri),
-          object: new URL(targetUri),
-        });
-        const undo = new Undo({
-          id: new URL(`https://${domain}/activities/${generateUlid()}`),
-          actor: new URL(actorUri),
-          object: frFollow,
-        });
-        const fed = c.get('federation');
-        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
-      } catch (_) { /* don't fail */ }
+      const frFollow = new Follow({
+        id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(actorUri),
+        object: new URL(targetUri),
+      });
+      const undo = new Undo({
+        id: new URL(`https://${domain}/activities/${generateUlid()}`),
+        actor: new URL(actorUri),
+        object: frFollow,
+      });
+      const fed = c.get('federation');
+      await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, undo);
     }
   }
 

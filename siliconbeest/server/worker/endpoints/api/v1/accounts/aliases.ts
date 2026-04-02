@@ -25,12 +25,8 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
  */
 function parseAliases(raw: string | null): string[] {
 	if (!raw) return [];
-	try {
-		const parsed = JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+	const parsed = JSON.parse(raw);
+	return Array.isArray(parsed) ? parsed : [];
 }
 
 // ── GET /aliases ──

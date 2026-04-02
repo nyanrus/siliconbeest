@@ -199,12 +199,21 @@ export default {
             ? (msg.body as Record<string, unknown>).type
             : 'fedify-task';
         const errorDuration = performance.now() - messageStart;
-        logPerformance('queue.message.error', errorDuration, { 
+        logPerformance('queue.message.error', errorDuration, {
           messageType: bodyType,
-          error: err instanceof Error ? err.message : String(err)
+          error: err instanceof Error ? err.message : String(err),
+          attempt: msg.attempts,
         });
-        console.error(`Queue handler error for ${bodyType}:`, err);
-        msg.retry();
+        console.error(`Queue handler error for ${bodyType} (attempt ${msg.attempts}):`, err);
+        // Max retry reached — log and ack to prevent infinite loop
+        // (federation queue max_retries=5, internal queue max_retries=3)
+        const MAX_ATTEMPTS = isFedifyMessage(msg.body) ? 6 : 4; // max_retries + 1 (first attempt)
+        if (msg.attempts >= MAX_ATTEMPTS) {
+          console.error(`[queue] DROPPED after ${msg.attempts} attempts: ${bodyType}`, JSON.stringify(msg.body));
+          msg.ack();
+        } else {
+          msg.retry();
+        }
       }
     }
     

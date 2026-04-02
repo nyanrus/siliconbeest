@@ -318,8 +318,7 @@ export async function processCreate(
 	// Process custom emojis from tags — store remote emojis for rendering
 	// Use the actor's server domain (not the CDN hostname from emoji URL)
 	const actorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
-	let actorServerDomain: string | null = null;
-	try { actorServerDomain = new URL(actorUri).hostname; } catch { /* skip */ }
+	const actorServerDomain = new URL(actorUri).hostname;
 
 	const emojiTags = tags.filter((t) => t.type === 'Emoji');
 	const newEmojis: Array<{ shortcode: string; url: string; static_url: string; domain: string }> = [];

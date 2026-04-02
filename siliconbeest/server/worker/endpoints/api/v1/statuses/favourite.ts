@@ -39,15 +39,13 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
     // Create notification for the status author (don't notify yourself)
     const statusAuthorId = row.account_id as string;
     if (statusAuthorId !== currentAccountId) {
-      try {
-        await c.env.QUEUE_INTERNAL.send({
-          type: 'create_notification',
-          recipientAccountId: statusAuthorId,
-          senderAccountId: currentAccountId,
-          notificationType: 'favourite',
-          statusId,
-        });
-      } catch (_) { /* don't fail the API response */ }
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'create_notification',
+        recipientAccountId: statusAuthorId,
+        senderAccountId: currentAccountId,
+        notificationType: 'favourite',
+        statusId,
+      });
     }
 
     // Federation: deliver Like activity
@@ -73,7 +71,7 @@ app.post('/:id/favourite', authRequired, requireScope('write:favourites'), async
         await sendToFollowers(fed, c.env, currentAccount.username as string, like);
       }
     } catch (e) {
-      console.error('Federation delivery failed for favourite:', e);
+      throw new Error(`Federation delivery failed for favourite: ${e instanceof Error ? e.message : e}`);
     }
   }
 

@@ -109,33 +109,27 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
   ]);
 
   // Add reblog to own home timeline immediately
-  try {
-    await c.env.DB.prepare(
-      'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
-    ).bind(reblogId, currentUser.account_id, now).run();
-  } catch (_) { /* ignore */ }
+  await c.env.DB.prepare(
+    'INSERT OR IGNORE INTO home_timeline_entries (status_id, account_id, created_at) VALUES (?1, ?2, ?3)',
+  ).bind(reblogId, currentUser.account_id, now).run();
 
   // Fanout reblog to followers' home timelines
-  try {
-    await c.env.QUEUE_INTERNAL.send({
-      type: 'timeline_fanout',
-      statusId: reblogId,
-      accountId: currentUser.account_id,
-    });
-  } catch (_) { /* don't fail */ }
+  await c.env.QUEUE_INTERNAL.send({
+    type: 'timeline_fanout',
+    statusId: reblogId,
+    accountId: currentUser.account_id,
+  });
 
   // Create notification for the status author (don't notify yourself)
   const statusAuthorId = row.account_id as string;
   if (statusAuthorId !== currentUser.account_id) {
-    try {
-      await c.env.QUEUE_INTERNAL.send({
-        type: 'create_notification',
-        recipientAccountId: statusAuthorId,
-        senderAccountId: currentUser.account_id,
-        notificationType: 'reblog',
-        statusId,
-      });
-    } catch (_) { /* don't fail the API response */ }
+    await c.env.QUEUE_INTERNAL.send({
+      type: 'create_notification',
+      recipientAccountId: statusAuthorId,
+      senderAccountId: currentUser.account_id,
+      notificationType: 'reblog',
+      statusId,
+    });
   }
 
   // Federation: deliver Announce activity to all followers
@@ -154,7 +148,7 @@ app.post('/:id/reblog', authRequired, requireScope('write:statuses'), async (c) 
     const fed = c.get('federation');
     await sendToFollowers(fed, c.env, currentAccount.username, announce);
   } catch (e) {
-    console.error('Federation delivery failed for reblog:', e);
+    throw new Error(`Federation delivery failed for reblog: ${e instanceof Error ? e.message : e}`);
   }
 
   const rebloggedStatus = await serializeStatusEnriched(row as Record<string, unknown>, c.env.DB, domain, currentUser.account_id, c.env.CACHE);

@@ -138,7 +138,17 @@ export async function fetchOgMetadata(url: string): Promise<OgData | null> {
       provider_name: ogSiteName || domain,
       provider_url: `https://${domain}`,
     };
-  } catch {
+  } catch (e) {
+    // Transient errors (network, timeout) → rethrow for queue retry
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`OG fetch timeout for ${url}`);
+    }
+    if (e instanceof TypeError) {
+      // fetch() network errors are TypeError
+      throw new Error(`OG fetch network error for ${url}: ${e.message}`);
+    }
+    // Non-transient (parse errors etc.) → log and give up
+    console.error(`OG fetch failed for ${url}:`, e);
     return null;
   }
 }

@@ -422,15 +422,13 @@ app.post('/', authRequired, requireScope('write:statuses'), async (c) => {
 
     // Batch queue all notifications (fire and forget, don't block)
     for (const notification of notificationsToQueue) {
-      try {
-        await c.env.QUEUE_INTERNAL.send({
-          type: 'create_notification',
-          recipientAccountId: notification.recipientAccountId,
-          senderAccountId: currentUser.account_id,
-          notificationType: notification.mention,
-          statusId,
-        });
-      } catch (_) { /* don't fail */ }
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'create_notification',
+        recipientAccountId: notification.recipientAccountId,
+        senderAccountId: currentUser.account_id,
+        notificationType: notification.mention,
+        statusId,
+      });
     }
   }
 

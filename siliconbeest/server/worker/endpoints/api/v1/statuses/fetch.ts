@@ -9,7 +9,7 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 /** Convert any date string to ISO 8601 with milliseconds */
 function toISO(d: unknown): string {
   if (!d || typeof d !== 'string') return new Date().toISOString();
-  try { return new Date(d).toISOString(); } catch { return d as string; }
+  return new Date(d).toISOString();
 }
 
 function parseAccountEmojiTags(

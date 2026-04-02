@@ -59,10 +59,10 @@ function isoOrNull(value: string | null | undefined): string | null {
   return value ?? null;
 }
 
-/** Safely parse a JSON column, returning a default on failure. */
+/** Parse a JSON column. Throws if the stored value is corrupt. */
 function parseJsonField<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
-  try { return JSON.parse(value); } catch { return fallback; }
+  return JSON.parse(value);
 }
 
 /** Ensure a date string is in ISO 8601 format (with T separator and Z suffix). */

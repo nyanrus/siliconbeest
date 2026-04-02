@@ -102,20 +102,16 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
 
     // Send Follow activity to remote server
     if (isRemote) {
-      try {
-        const fed = c.get('federation');
-        await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, follow);
-      } catch (_) { /* don't fail the API response */ }
+      const fed = c.get('federation');
+      await sendToRecipient(fed, c.env, currentAccount?.username as string, targetUri, follow);
     } else {
       // Local locked account: create notification for target
-      try {
-        await c.env.QUEUE_INTERNAL.send({
-          type: 'create_notification',
-          recipientAccountId: targetId,
-          senderAccountId: currentAccountId,
-          notificationType: 'follow_request',
-        });
-      } catch (_) { /* don't fail */ }
+      await c.env.QUEUE_INTERNAL.send({
+        type: 'create_notification',
+        recipientAccountId: targetId,
+        senderAccountId: currentAccountId,
+        notificationType: 'follow_request',
+      });
     }
 
     return c.json({
@@ -150,14 +146,12 @@ app.post('/:id/follow', authRequired, requireScope('write:follows'), async (c) =
   ]);
 
   // Notification for local auto-accept
-  try {
-    await c.env.QUEUE_INTERNAL.send({
-      type: 'create_notification',
-      recipientAccountId: targetId,
-      senderAccountId: currentAccountId,
-      notificationType: 'follow',
-    });
-  } catch (_) { /* don't fail */ }
+  await c.env.QUEUE_INTERNAL.send({
+    type: 'create_notification',
+    recipientAccountId: targetId,
+    senderAccountId: currentAccountId,
+    notificationType: 'follow',
+  });
 
   return c.json({
     id: targetId,

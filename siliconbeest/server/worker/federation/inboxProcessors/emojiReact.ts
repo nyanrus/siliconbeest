@@ -80,8 +80,7 @@ export async function processEmojiReact(
 
 			// Use actor's server domain, not CDN hostname from emoji URL
 			const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
-			let emojiDomain: string | null = null;
-			try { emojiDomain = new URL(reactorUri).hostname; } catch { /* skip */ }
+			const emojiDomain = new URL(reactorUri).hostname;
 
 			if (emojiDomain) {
 				await env.DB.prepare(
@@ -101,8 +100,7 @@ export async function processEmojiReact(
 		const shortcode = emoji.slice(1, -1);
 		// Look up the custom emoji we just stored (or already existed)
 		const reactorUri = typeof activity.actor === 'string' ? activity.actor : (activity.actor as any)?.id || '';
-		let emojiDomain: string | null = null;
-		try { emojiDomain = new URL(reactorUri).hostname; } catch { /* skip */ }
+		const emojiDomain = new URL(reactorUri).hostname;
 		if (emojiDomain) {
 			const emojiRow = await env.DB.prepare(
 				'SELECT id FROM custom_emojis WHERE shortcode = ? AND domain = ? LIMIT 1',

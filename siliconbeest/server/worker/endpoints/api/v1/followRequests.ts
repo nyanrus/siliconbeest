@@ -102,14 +102,12 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   ]);
 
   // Create follow notification for the requester (they now have a new follower relationship accepted)
-  try {
-    await c.env.QUEUE_INTERNAL.send({
-      type: 'create_notification',
-      recipientAccountId: requestAccountId,
-      senderAccountId: currentAccount.id,
-      notificationType: 'follow',
-    });
-  } catch (_) { /* don't fail */ }
+  await c.env.QUEUE_INTERNAL.send({
+    type: 'create_notification',
+    recipientAccountId: requestAccountId,
+    senderAccountId: currentAccount.id,
+    notificationType: 'follow',
+  });
 
   // AP: Send Accept(Follow) to the remote server
   const remoteAccount = await c.env.DB.prepare(
@@ -117,22 +115,20 @@ app.post('/:id/authorize', authRequired, requireScope('write:follows'), async (c
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
   if (remoteAccount?.domain) {
-    try {
-      const myUri = `https://${domain}/users/${currentAccount.username}`;
-      const originalFollow = new Follow({
-        id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
-        actor: new URL(remoteAccount.uri),
-        object: new URL(myUri),
-      });
-      const accept = new Accept({
-        id: new URL(`https://${domain}/activities/${generateUlid()}`),
-        actor: new URL(myUri),
-        object: originalFollow,
-        tos: [new URL(remoteAccount.uri)],
-      });
-      const fed = c.get('federation');
-      await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount.uri, accept);
-    } catch (_) { /* don't fail the API response */ }
+    const myUri = `https://${domain}/users/${currentAccount.username}`;
+    const originalFollow = new Follow({
+      id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+      actor: new URL(remoteAccount.uri),
+      object: new URL(myUri),
+    });
+    const accept = new Accept({
+      id: new URL(`https://${domain}/activities/${generateUlid()}`),
+      actor: new URL(myUri),
+      object: originalFollow,
+      tos: [new URL(remoteAccount.uri)],
+    });
+    const fed = c.get('federation');
+    await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount.uri, accept);
   }
 
   return c.json({
@@ -181,23 +177,21 @@ app.post('/:id/reject', authRequired, requireScope('write:follows'), async (c) =
   ).bind(requestAccountId).first<{ uri: string; inbox_url: string | null; shared_inbox_url: string | null; domain: string | null }>();
 
   if (remoteAccount2?.domain) {
-    try {
-      const domain = c.env.INSTANCE_DOMAIN;
-      const myUri = `https://${domain}/users/${currentAccount.username}`;
-      const originalFollow = new Follow({
-        id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
-        actor: new URL(remoteAccount2.uri),
-        object: new URL(myUri),
-      });
-      const reject = new Reject({
-        id: new URL(`https://${domain}/activities/${generateUlid()}`),
-        actor: new URL(myUri),
-        object: originalFollow,
-        tos: [new URL(remoteAccount2.uri)],
-      });
-      const fed = c.get('federation');
-      await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount2.uri, reject);
-    } catch (_) { /* don't fail */ }
+    const domain = c.env.INSTANCE_DOMAIN;
+    const myUri = `https://${domain}/users/${currentAccount.username}`;
+    const originalFollow = new Follow({
+      id: new URL((fr.uri as string) || `https://${domain}/activities/${generateUlid()}`),
+      actor: new URL(remoteAccount2.uri),
+      object: new URL(myUri),
+    });
+    const reject = new Reject({
+      id: new URL(`https://${domain}/activities/${generateUlid()}`),
+      actor: new URL(myUri),
+      object: originalFollow,
+      tos: [new URL(remoteAccount2.uri)],
+    });
+    const fed = c.get('federation');
+    await sendToRecipient(fed, c.env, currentAccount.username, remoteAccount2.uri, reject);
   }
 
   return c.json({
