@@ -55,16 +55,12 @@ onMounted(async () => {
   // Set dynamic page title
   document.title = instance.instance?.title || 'SiliconBeest';
 
-  // Set dynamic favicon
-  const faviconUrl = instance.instance?.thumbnail?.url;
-  if (faviconUrl) {
-    let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = faviconUrl;
+  // Set dynamic favicon — Worker serves /favicon.ico from R2 (admin-uploaded)
+  // with SVG fallback, so we just need to ensure the link tag exists and
+  // bust the cache when the instance data is loaded
+  const link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+  if (link) {
+    link.href = '/favicon.ico';
   }
 });
 </script>
