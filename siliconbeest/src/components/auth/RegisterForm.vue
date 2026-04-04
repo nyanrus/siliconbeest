@@ -2,16 +2,26 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTurnstile } from '@/composables/useTurnstile'
+import { SUPPORTED_LOCALES, getDisplayLocale } from '@/i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { token: turnstileToken, isEnabled: turnstileEnabled, render: renderTurnstile, reset: resetTurnstile } = useTurnstile()
 
-defineProps<{
+const props = defineProps<{
   registrationOpen?: boolean
+  registrationMode?: string
+  registrationMessage?: string
 }>()
 
 const emit = defineEmits<{
-  submit: [data: { username: string; email: string; password: string; turnstile_token?: string }]
+  submit: [data: {
+    username: string
+    email: string
+    password: string
+    locale: string
+    reason?: string
+    turnstile_token?: string
+  }]
 }>()
 
 const username = ref('')
@@ -19,8 +29,12 @@ const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const agreement = ref(false)
+const defaultLocale = ref(getDisplayLocale())
+const reason = ref('')
 const loading = ref(false)
 const error = ref('')
+
+const isApprovalMode = computed(() => props.registrationMode === 'approval')
 
 const passwordsMatch = computed(() => password.value === confirmPassword.value)
 
@@ -30,7 +44,8 @@ const canSubmit = computed(() =>
   password.value &&
   passwordsMatch.value &&
   agreement.value &&
-  !loading.value
+  !loading.value &&
+  (!isApprovalMode.value || reason.value.trim())
 )
 
 const turnstileRendered = ref(false)
@@ -62,6 +77,8 @@ function handleSubmit() {
     username: username.value,
     email: email.value,
     password: password.value,
+    locale: defaultLocale.value,
+    reason: isApprovalMode.value ? reason.value.trim() : undefined,
     turnstile_token: turnstileToken.value || undefined,
   })
   loading.value = false
@@ -83,6 +100,12 @@ function handleSubmit() {
     </div>
 
     <template v-else>
+      <!-- Admin registration message -->
+      <div v-if="registrationMessage" class="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm">
+        <strong>{{ t('auth.admin_message') }}</strong>
+        <p class="mt-1">{{ registrationMessage }}</p>
+      </div>
+
       <!-- Username -->
       <div>
         <label for="reg-username" class="block text-sm font-medium mb-1">{{ t('auth.username') }}</label>
@@ -138,6 +161,34 @@ function handleSubmit() {
         <p v-if="confirmPassword && !passwordsMatch" class="text-xs text-red-500 mt-1">
           {{ t('auth.passwords_no_match') }}
         </p>
+      </div>
+
+      <!-- Default Language -->
+      <div>
+        <label for="reg-locale" class="block text-sm font-medium mb-1">{{ t('auth.default_language') }}</label>
+        <select
+          id="reg-locale"
+          v-model="defaultLocale"
+          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option v-for="loc in SUPPORTED_LOCALES" :key="loc.code" :value="loc.code">
+            {{ loc.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Signup Reason (approval mode only) -->
+      <div v-if="isApprovalMode">
+        <label for="reg-reason" class="block text-sm font-medium mb-1">{{ t('auth.signup_reason') }}</label>
+        <textarea
+          id="reg-reason"
+          v-model="reason"
+          rows="3"
+          maxlength="1000"
+          required
+          :placeholder="t('auth.signup_reason_placeholder')"
+          class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+        />
       </div>
 
       <!-- Agreement -->

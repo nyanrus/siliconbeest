@@ -27,6 +27,7 @@ const settings = ref({
   site_logo_url: '',
   site_theme_color: '#6366f1',
   registration_mode: 'closed',
+  registration_message: '',
   max_toot_chars: '500',
   max_media_attachments: '4',
   smtp_host: '',
@@ -195,13 +196,19 @@ const labelClass = 'block text-sm font-medium mb-1'
       <!-- Registration -->
       <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.registration') }}</h2>
-        <div>
-          <label :class="labelClass">{{ t('admin_settings.fields.registration_mode') }}</label>
-          <select v-model="settings.registration_mode" :class="inputClass" class="!w-64">
-            <option value="open">{{ t('admin_settings.reg_open') }}</option>
-            <option value="approval">{{ t('admin_settings.reg_approval') }}</option>
-            <option value="closed">{{ t('admin_settings.reg_closed') }}</option>
-          </select>
+        <div class="space-y-4">
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.registration_mode') }}</label>
+            <select v-model="settings.registration_mode" :class="inputClass" class="!w-64">
+              <option value="open">{{ t('admin_settings.reg_open') }}</option>
+              <option value="approval">{{ t('admin_settings.reg_approval') }}</option>
+              <option value="closed">{{ t('admin_settings.reg_closed') }}</option>
+            </select>
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.registration_message') }}</label>
+            <textarea v-model="settings.registration_message" rows="3" :class="inputClass" :placeholder="t('admin_settings.registration_message_help')" />
+          </div>
         </div>
       </section>
 
@@ -336,15 +343,15 @@ const labelClass = 'block text-sm font-medium mb-1'
             <span class="text-sm font-medium">{{ t('admin_settings.web_push_enabled') }}</span>
           </div>
           <div>
-            <label :class="labelClass">VAPID Public Key</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.vapid_public_key') }}</label>
             <input v-model="settings.vapid_public_key" :class="inputClass" placeholder="Base64url-encoded P-256 public key (65 bytes)" />
           </div>
           <div>
-            <label :class="labelClass">VAPID Private Key</label>
+            <label :class="labelClass">{{ t('admin_settings.fields.vapid_private_key') }}</label>
             <input v-model="settings.vapid_private_key" type="password" :class="inputClass" placeholder="Base64url-encoded P-256 private key (32 bytes)" />
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400">
-            VAPID 키는 <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">scripts/generate-vapid-keys.sh</code>로 생성하거나, 환경변수로도 설정할 수 있습니다. DB 설정이 환경변수보다 우선합니다.
+            {{ t('admin_settings.vapid_help') }}
           </p>
         </div>
       </section>

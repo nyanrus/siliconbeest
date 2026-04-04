@@ -27,10 +27,10 @@ app.post('/:id/approve', async (c) => {
 	// Approve
 	await c.env.DB.prepare('UPDATE users SET approved = 1 WHERE account_id = ?1').bind(id).run();
 
-	// Send welcome email (best-effort — never block approval)
+	// Send welcome email in user's locale (best-effort — never block approval)
 	if (user.email) {
 		try {
-			await sendWelcome(c.env, user.email as string, account.username as string);
+			await sendWelcome(c.env, user.email as string, account.username as string, (user.locale as string) || 'en');
 		} catch { /* email queue failure should not block approval */ }
 	}
 

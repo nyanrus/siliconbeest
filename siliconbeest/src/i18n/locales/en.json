@@ -64,7 +64,11 @@
     "resend_confirmation": "Resend confirmation email",
     "resend_cooldown": "Please wait before requesting another email",
     "resend_success": "Confirmation email sent",
-    "email_not_confirmed": "Please confirm your email address before signing in."
+    "email_not_confirmed": "Please confirm your email address before signing in.",
+    "default_language": "Default language",
+    "signup_reason": "Why do you want to join?",
+    "signup_reason_placeholder": "Tell us a bit about yourself and why you'd like to join...",
+    "admin_message": "Message from the administrator:"
   },
   "compose": {
     "placeholder": "What's on your mind?",
@@ -239,6 +243,10 @@
     "migration": "Migration",
     "security": "Security",
     "language": "Language",
+    "display_language": "Display Language",
+    "display_language_desc": "Controls the language of the user interface. Stored locally in your browser.",
+    "default_language": "Default Language",
+    "default_language_desc": "Used for emails and as the default language for new posts. Stored on the server.",
     "theme": "Theme",
     "themeLight": "Light",
     "themeDark": "Dark",
@@ -588,7 +596,9 @@
     "web_push_description": "Enable browser push notifications for users. VAPID keys must be configured on the server.",
     "web_push_enabled": "Enable Web Push notifications",
     "vapid_public_key": "VAPID Public Key",
+    "vapid_private_key": "VAPID Private Key",
     "vapid_note": "VAPID keys are configured via server environment variables",
+    "vapid_help": "VAPID keys can be generated with scripts/generate-vapid-keys.sh or set via environment variables. DB settings take priority over environment variables.",
     "reg_open": "Open — anyone can sign up",
     "reg_approval": "Approval required — admin must approve",
     "reg_closed": "Closed — no new registrations",
@@ -609,8 +619,12 @@
       "smtp_password": "SMTP password",
       "smtp_from": "From address",
       "smtp_auth_type": "Auth method",
-      "smtp_secure": "Connection security"
-    }
+      "smtp_secure": "Connection security",
+      "vapid_public_key": "VAPID Public Key",
+      "vapid_private_key": "VAPID Private Key",
+      "registration_message": "Registration message"
+    },
+    "registration_message_help": "This message is shown to users on the registration page."
   },
   "admin_accounts": {
     "filter_all": "All",

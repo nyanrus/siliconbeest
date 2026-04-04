@@ -1,4 +1,17 @@
 import type { SendEmailMessage } from '../types/queue';
+import { getEmailTranslations } from './emailTranslations';
+
+/**
+ * HTML-escape a string to prevent injection in email templates.
+ */
+function escapeHtml(str: string): string {
+	return str
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
+}
 
 /**
  * Enqueue an email for delivery via the email-sender worker.
@@ -37,14 +50,16 @@ export async function sendPasswordReset(
 	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_DOMAIN: string },
 	email: string,
 	token: string,
+	locale = 'en',
 ): Promise<boolean> {
 	const domain = env.INSTANCE_DOMAIN;
 	const resetUrl = `https://${domain}/auth/reset-password?token=${token}`;
-	const html = `<h1>Password Reset</h1>
-<p>Click the link below to reset your password:</p>
-<p><a href="${resetUrl}">${resetUrl}</a></p>
-<p>This link expires in 1 hour.</p>`;
-	return sendEmail(env, email, 'Reset your password', html);
+	const t = getEmailTranslations(locale);
+	const html = `<h1>${escapeHtml(t.passwordReset.heading)}</h1>
+<p>${escapeHtml(t.passwordReset.body)}</p>
+<p><a href="${escapeHtml(resetUrl)}">${escapeHtml(resetUrl)}</a></p>
+<p>${escapeHtml(t.passwordReset.expiry)}</p>`;
+	return sendEmail(env, email, t.passwordReset.subject, html);
 }
 
 /**
@@ -54,15 +69,17 @@ export async function sendConfirmation(
 	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_DOMAIN: string; INSTANCE_TITLE?: string },
 	email: string,
 	token: string,
+	locale = 'en',
 ): Promise<boolean> {
 	const domain = env.INSTANCE_DOMAIN;
 	const title = env.INSTANCE_TITLE || 'SiliconBeest';
 	const confirmUrl = `https://${domain}/auth/confirm?token=${token}`;
-	const html = `<h1>Confirm your email - ${title}</h1>
-<p>Click the link below to confirm your email address:</p>
-<p><a href="${confirmUrl}">${confirmUrl}</a></p>
-<p>This link expires in 24 hours.</p>`;
-	return sendEmail(env, email, `Confirm your email - ${title}`, html);
+	const t = getEmailTranslations(locale);
+	const html = `<h1>${escapeHtml(t.confirmation.heading(title))}</h1>
+<p>${escapeHtml(t.confirmation.body)}</p>
+<p><a href="${escapeHtml(confirmUrl)}">${escapeHtml(confirmUrl)}</a></p>
+<p>${escapeHtml(t.confirmation.expiry)}</p>`;
+	return sendEmail(env, email, t.confirmation.subject(title), html);
 }
 
 /**
@@ -72,13 +89,16 @@ export async function sendWelcome(
 	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_DOMAIN: string; INSTANCE_TITLE?: string },
 	email: string,
 	username: string,
+	locale = 'en',
 ): Promise<boolean> {
 	const domain = env.INSTANCE_DOMAIN;
 	const title = env.INSTANCE_TITLE || 'SiliconBeest';
-	const html = `<h1>Welcome to ${title}!</h1>
-<p>Your account <strong>@${username}@${domain}</strong> has been approved.</p>
-<p>Log in at <a href="https://${domain}">https://${domain}</a></p>`;
-	return sendEmail(env, email, `Welcome to ${title}`, html);
+	const t = getEmailTranslations(locale);
+	const html = `<h1>${escapeHtml(t.welcome.heading(title))}</h1>
+<p>${escapeHtml(t.welcome.body)}</p>
+<p><strong>@${escapeHtml(username)}@${escapeHtml(domain)}</strong></p>
+<p><a href="https://${escapeHtml(domain)}">https://${escapeHtml(domain)}</a></p>`;
+	return sendEmail(env, email, t.welcome.subject(title), html);
 }
 
 /**
@@ -87,11 +107,13 @@ export async function sendWelcome(
 export async function sendRejection(
 	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_TITLE?: string },
 	email: string,
+	locale = 'en',
 ): Promise<boolean> {
 	const title = env.INSTANCE_TITLE || 'SiliconBeest';
-	const html = `<h1>Registration Update</h1>
-<p>Your registration at ${title} was not approved at this time.</p>`;
-	return sendEmail(env, email, 'Registration update', html);
+	const t = getEmailTranslations(locale);
+	const html = `<h1>${escapeHtml(t.rejection.heading)}</h1>
+<p>${escapeHtml(t.rejection.body(title))}</p>`;
+	return sendEmail(env, email, t.rejection.subject, html);
 }
 
 /**
@@ -105,51 +127,20 @@ export async function sendAccountWarning(
 	email: string,
 	action: string,
 	text: string,
+	locale = 'en',
 ): Promise<boolean> {
 	const title = env.INSTANCE_TITLE || 'SiliconBeest';
+	const t = getEmailTranslations(locale);
 
-	const actionLabels: Record<string, { subject: string; heading: string; description: string }> = {
-		warn: {
-			subject: `[${title}] 계정 경고`,
-			heading: '계정 경고',
-			description: '관리자가 회원님의 계정에 경고를 보냈습니다.',
-		},
-		disable: {
-			subject: `[${title}] 계정 동결`,
-			heading: '계정 동결',
-			description: '관리자가 회원님의 계정을 동결했습니다. 로그인이 제한됩니다.',
-		},
-		silence: {
-			subject: `[${title}] 계정 제한`,
-			heading: '계정 제한',
-			description: '관리자가 회원님의 계정을 제한했습니다. 게시물이 팔로워에게만 표시됩니다.',
-		},
-		suspend: {
-			subject: `[${title}] 계정 정지`,
-			heading: '계정 정지',
-			description: '관리자가 회원님의 계정을 정지했습니다. 더 이상 이 계정을 사용할 수 없습니다.',
-		},
-		sensitive: {
-			subject: `[${title}] 미디어 민감 표시`,
-			heading: '미디어 민감 표시',
-			description: '관리자가 회원님의 미디어를 민감한 콘텐츠로 표시했습니다.',
-		},
-		none: {
-			subject: `[${title}] 계정 경고`,
-			heading: '계정 경고',
-			description: '관리자가 회원님의 계정에 경고를 보냈습니다.',
-		},
-	};
+	const labels = t.accountWarning[action] || t.accountWarning.warn;
 
-	const labels = actionLabels[action] || actionLabels.warn;
-
-	const html = `<h1>${labels.heading}</h1>
-<p>${labels.description}</p>
-${text ? `<h3>사유</h3><p>${text}</p>` : ''}
+	const html = `<h1>${escapeHtml(labels.heading)}</h1>
+<p>${escapeHtml(labels.description)}</p>
+${text ? `<h3>${escapeHtml(t.reasonLabel)}</h3><p>${escapeHtml(text)}</p>` : ''}
 <hr />
-<p style="color:#888;font-size:12px;">${title}</p>`;
+<p style="color:#888;font-size:12px;">${escapeHtml(title)}</p>`;
 
-	return sendEmail(env, email, labels.subject, html);
+	return sendEmail(env, email, `[${title}] ${labels.subject}`, html);
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +164,7 @@ export async function notifyAdminsPendingUser(
 	env: { QUEUE_EMAIL: Queue<SendEmailMessage>; INSTANCE_DOMAIN: string; INSTANCE_TITLE?: string; DB: D1Database },
 	username: string,
 	email: string,
+	reason?: string | null,
 ): Promise<void> {
 	const adminEmails = await getAdminEmails(env.DB);
 	if (adminEmails.length === 0) return;
@@ -184,10 +176,11 @@ export async function notifyAdminsPendingUser(
 	const html = `<h2>New Registration Pending Approval</h2>
 <p>A new user has registered and is waiting for approval:</p>
 <ul>
-  <li><strong>Username:</strong> @${username}@${domain}</li>
-  <li><strong>Email:</strong> ${email}</li>
+  <li><strong>Username:</strong> @${escapeHtml(username)}@${escapeHtml(domain)}</li>
+  <li><strong>Email:</strong> ${escapeHtml(email)}</li>
+  ${reason ? `<li><strong>Reason:</strong> ${escapeHtml(reason)}</li>` : ''}
 </ul>
-<p><a href="${adminUrl}">Review pending accounts →</a></p>`;
+<p><a href="${escapeHtml(adminUrl)}">Review pending accounts &rarr;</a></p>`;
 
 	for (const adminEmail of adminEmails) {
 		try {
@@ -218,12 +211,12 @@ export async function notifyAdminsNewReport(
 	const html = `<h2>New Report Submitted</h2>
 <p>A new report has been filed:</p>
 <ul>
-  <li><strong>Reporter:</strong> @${reporterAcct}</li>
-  <li><strong>Target:</strong> @${targetAcct}</li>
-  <li><strong>Category:</strong> ${category || 'other'}</li>
-  ${comment ? `<li><strong>Comment:</strong> ${comment}</li>` : ''}
+  <li><strong>Reporter:</strong> @${escapeHtml(reporterAcct)}</li>
+  <li><strong>Target:</strong> @${escapeHtml(targetAcct)}</li>
+  <li><strong>Category:</strong> ${escapeHtml(category || 'other')}</li>
+  ${comment ? `<li><strong>Comment:</strong> ${escapeHtml(comment)}</li>` : ''}
 </ul>
-<p><a href="${adminUrl}">Review reports →</a></p>`;
+<p><a href="${escapeHtml(adminUrl)}">Review reports &rarr;</a></p>`;
 
 	for (const adminEmail of adminEmails) {
 		try {

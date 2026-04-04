@@ -22,10 +22,10 @@ app.post('/:id/reject', async (c) => {
 	if (!user) throw new AppError(404, 'Record not found');
 	if (user.approved) throw new AppError(403, 'This account is not pending approval');
 
-	// Send rejection email before deleting (best-effort — never block rejection)
+	// Send rejection email in user's locale before deleting (best-effort — never block rejection)
 	if (user.email) {
 		try {
-			await sendRejection(c.env, user.email as string);
+			await sendRejection(c.env, user.email as string, (user.locale as string) || 'en');
 		} catch { /* email queue failure should not block rejection */ }
 	}
 

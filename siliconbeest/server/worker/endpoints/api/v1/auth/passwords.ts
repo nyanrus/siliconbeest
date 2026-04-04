@@ -22,8 +22,8 @@ app.post('/', async (c) => {
 		throw new AppError(422, 'Validation failed: email is required');
 	}
 
-	// Look up user by email
-	const user = await c.env.DB.prepare('SELECT id, email FROM users WHERE email = ?1')
+	// Look up user by email (include locale for localised email)
+	const user = await c.env.DB.prepare('SELECT id, email, locale FROM users WHERE email = ?1')
 		.bind(email)
 		.first();
 
@@ -37,8 +37,8 @@ app.post('/', async (c) => {
 			.bind(token, now, user.id)
 			.run();
 
-		// Send email (best-effort — failures are logged but do not break the response)
-		await sendPasswordReset(c.env, email, token);
+		// Send email in user's locale (best-effort — failures are logged but do not break the response)
+		await sendPasswordReset(c.env, email, token, (user.locale as string) || 'en');
 	}
 
 	// Always return 200 to prevent email enumeration

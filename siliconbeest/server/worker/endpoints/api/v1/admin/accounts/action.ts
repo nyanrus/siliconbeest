@@ -91,10 +91,10 @@ app.post('/:id/action', async (c) => {
 
 	// Send email notification to local users only (domain IS NULL means local)
 	if (sendEmail && !account.domain) {
-		const user = await c.env.DB.prepare('SELECT email FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null }>();
+		const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
 		if (user?.email) {
 			try {
-				await sendAccountWarning(c.env, user.email, actionType, warningText);
+				await sendAccountWarning(c.env, user.email, actionType, warningText, (user.locale as string) || 'en');
 			} catch {
 				// Email failure should not block the action
 			}

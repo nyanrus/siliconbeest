@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { authRequired } from '../../../../middleware/auth';
 import { requireScope } from '../../../../middleware/scopeCheck';
 import { AppError } from '../../../../middleware/errorHandler';
+import { isValidLocale } from '../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -154,6 +155,16 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   if (updates.length > 1) {
     const sql = `UPDATE accounts SET ${updates.join(', ')} WHERE id = ?${paramIdx}`;
     await c.env.DB.prepare(sql).bind(...params).run();
+  }
+
+  // Handle default language update (source[language] or source.language)
+  const sourceLanguage = (body['source[language]'] as string) || (body.source as any)?.language;
+  if (sourceLanguage && typeof sourceLanguage === 'string') {
+    if (isValidLocale(sourceLanguage)) {
+      await c.env.DB.prepare(
+        'UPDATE users SET locale = ?1, updated_at = ?2 WHERE account_id = ?3',
+      ).bind(sourceLanguage, now, currentUser.account_id).run();
+    }
   }
 
   // Fetch updated account

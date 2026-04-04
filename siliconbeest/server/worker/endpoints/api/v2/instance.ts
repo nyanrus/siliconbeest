@@ -10,7 +10,7 @@ app.get('/', async (c) => {
   // Read settings from DB first, fall back to env vars
   const dbSettings: Record<string, string> = {};
   const { results: settingsRows } = await c.env.DB.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'site_contact_email', 'site_contact_username')"
+    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'registration_message', 'site_contact_email', 'site_contact_username')"
   ).all();
   for (const row of settingsRows ?? []) {
     dbSettings[row.key as string] = row.value as string;
@@ -101,9 +101,9 @@ app.get('/', async (c) => {
       },
     },
     registrations: {
-      enabled: registrationMode !== 'none',
+      enabled: registrationMode !== 'none' && registrationMode !== 'closed',
       approval_required: registrationMode === 'approval',
-      message: null,
+      message: dbSettings.registration_message || null,
       url: null,
     },
     contact: {

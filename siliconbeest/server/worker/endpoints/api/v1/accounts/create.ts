@@ -5,6 +5,7 @@ import { createDefaultImages } from '../../../../utils/defaultImages';
 import { generateToken } from '../../../../utils/crypto';
 import { sendConfirmation, notifyAdminsPendingUser } from '../../../../services/email';
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
+import { sanitizeLocale } from '../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -70,6 +71,7 @@ app.post('/', async (c) => {
     password: string;
     agreement: boolean;
     locale?: string;
+    reason?: string;
     turnstile_token?: string;
   }>();
 
@@ -163,6 +165,13 @@ app.post('/', async (c) => {
   const ed25519PrivB64 = btoa(String.fromCharCode(...new Uint8Array(ed25519PrivPkcs8))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
   const approved = regMode === 'approval' ? 0 : 1;
+  const validatedLocale = sanitizeLocale(body.locale);
+
+  // Sanitize reason: strip HTML tags, trim, limit length
+  let reason: string | null = null;
+  if (body.reason && typeof body.reason === 'string') {
+    reason = body.reason.replace(/<[^>]*>/g, '').trim().slice(0, 1000) || null;
+  }
 
   // Generate default avatar and header images
   const { avatarUrl, headerUrl } = await createDefaultImages(
@@ -175,9 +184,9 @@ app.post('/', async (c) => {
        VALUES (?1, ?2, NULL, '', '', ?3, ?4, ?6, ?6, ?7, ?7, 0, 0, 1, 0, 0, 0, ?5, ?5)`,
     ).bind(accountId, body.username, actorUri, `https://${domain}/@${body.username}`, now, avatarUrl, headerUrl),
     c.env.DB.prepare(
-      `INSERT INTO users (id, account_id, email, encrypted_password, locale, confirmed_at, role, approved, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, NULL, 'user', ?6, ?7, ?7)`,
-    ).bind(userId, accountId, body.email, encryptedPassword, body.locale || 'en', approved, now),
+      `INSERT INTO users (id, account_id, email, encrypted_password, locale, confirmed_at, role, approved, reason, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, NULL, 'user', ?6, ?7, ?8, ?8)`,
+    ).bind(userId, accountId, body.email, encryptedPassword, validatedLocale, approved, reason, now),
     c.env.DB.prepare(
       `INSERT INTO actor_keys (id, account_id, public_key, private_key, key_id, ed25519_public_key, ed25519_private_key, created_at)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
@@ -193,9 +202,9 @@ app.post('/', async (c) => {
   );
   await c.env.DB.prepare('UPDATE users SET confirmation_token = ?1 WHERE id = ?2').bind(confirmToken, userId).run();
 
-  // Send confirmation email (best-effort)
+  // Send confirmation email (best-effort, in user's chosen locale)
   try {
-    await sendConfirmation(c.env, body.email, confirmToken);
+    await sendConfirmation(c.env, body.email, confirmToken, validatedLocale);
   } catch { /* email queue failure should not block registration */ }
 
   // Notify admins if approval is required
@@ -205,6 +214,7 @@ app.post('/', async (c) => {
         { ...c.env, DB: c.env.DB },
         body.username,
         body.email,
+        reason,
       );
     } catch { /* admin notification failure should not block registration */ }
   }
