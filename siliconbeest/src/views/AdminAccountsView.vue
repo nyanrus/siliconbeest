@@ -143,11 +143,11 @@ function formatDate(dateStr: string) {
 }
 
 function statusBadge(account: AdminAccount) {
-  if (account.suspended) return { text: 'Suspended', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
-  if (account.silenced) return { text: 'Silenced', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
-  if (!account.approved) return { text: 'Pending', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
-  if (account.disabled) return { text: 'Disabled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400' }
-  return { text: 'Active', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (account.suspended) return { text: t('admin_accounts.status_suspended'), color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
+  if (account.silenced) return { text: t('admin_accounts.status_silenced'), color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
+  if (!account.approved) return { text: t('admin_accounts.status_pending'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
+  if (account.disabled) return { text: t('admin_accounts.status_disabled'), color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400' }
+  return { text: t('admin_accounts.status_active'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
 }
 
 const tabClass = (active: boolean) =>
@@ -190,9 +190,9 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
             <th class="px-4 py-3 font-medium">{{ t('auth.username') }}</th>
             <th class="px-4 py-3 font-medium">{{ t('auth.email') }}</th>
             <th class="px-4 py-3 font-medium">{{ t('admin_accounts.role') }}</th>
-            <th class="px-4 py-3 font-medium">Status</th>
-            <th class="px-4 py-3 font-medium">Created</th>
-            <th class="px-4 py-3 font-medium">Actions</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.status') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.created') }}</th>
+            <th class="px-4 py-3 font-medium">{{ t('admin_accounts.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -293,7 +293,7 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
             </td>
           </tr>
           <tr v-if="filteredAccounts.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-gray-500">No accounts found.</td>
+            <td colspan="6" class="px-4 py-8 text-center text-gray-500">{{ t('admin_accounts.no_accounts') }}</td>
           </tr>
         </tbody>
       </table>
@@ -308,15 +308,15 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
           </h3>
           <form @submit.prevent="handleSendEmail" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium mb-1">To</label>
+              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_to') }}</label>
               <input :value="emailTarget?.email" disabled :class="inputClass" class="!bg-gray-100 dark:!bg-gray-600" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Subject</label>
+              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_subject') }}</label>
               <input v-model="emailSubject" required :class="inputClass" />
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Body</label>
+              <label class="block text-sm font-medium mb-1">{{ t('admin_accounts.email_body') }}</label>
               <textarea v-model="emailBody" required rows="5" :class="inputClass" />
             </div>
             <div class="flex justify-end gap-3">

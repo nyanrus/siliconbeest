@@ -242,6 +242,7 @@
     "filters": "Filters",
     "migration": "Migration",
     "security": "Security",
+    "admin": "Administration",
     "language": "Language",
     "display_language": "Display Language",
     "display_language_desc": "Controls the language of the user interface. Stored locally in your browser.",
@@ -645,7 +646,19 @@
     "unsuspended": "Account unsuspended.",
     "unsilenced": "Account unsilenced.",
     "enabled": "Account enabled.",
-    "unsensitized": "Sensitive flag removed."
+    "unsensitized": "Sensitive flag removed.",
+    "status": "Status",
+    "created": "Created",
+    "actions": "Actions",
+    "no_accounts": "No accounts found.",
+    "status_suspended": "Suspended",
+    "status_silenced": "Silenced",
+    "status_pending": "Pending",
+    "status_disabled": "Disabled",
+    "status_active": "Active",
+    "email_to": "To",
+    "email_subject": "Subject",
+    "email_body": "Body"
   },
   "lists": {
     "create": "Create",

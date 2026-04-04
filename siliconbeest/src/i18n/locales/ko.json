@@ -242,6 +242,7 @@
     "filters": "필터",
     "migration": "계정 이전",
     "security": "보안",
+    "admin": "관리",
     "language": "언어",
     "display_language": "표시 언어",
     "display_language_desc": "사용자 인터페이스의 언어를 설정합니다. 브라우저에 로컬로 저장됩니다.",
@@ -645,7 +646,19 @@
     "unsuspended": "계정 정지가 해제되었습니다.",
     "unsilenced": "계정 제한이 해제되었습니다.",
     "enabled": "계정이 활성화되었습니다.",
-    "unsensitized": "민감 플래그가 제거되었습니다."
+    "unsensitized": "민감 플래그가 제거되었습니다.",
+    "status": "상태",
+    "created": "가입일",
+    "actions": "작업",
+    "no_accounts": "계정이 없습니다.",
+    "status_suspended": "정지됨",
+    "status_silenced": "제한됨",
+    "status_pending": "대기 중",
+    "status_disabled": "비활성",
+    "status_active": "활성",
+    "email_to": "받는 사람",
+    "email_subject": "제목",
+    "email_body": "내용"
   },
   "lists": {
     "create": "만들기",
