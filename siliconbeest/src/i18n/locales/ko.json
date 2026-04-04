@@ -658,7 +658,8 @@
     "status_active": "활성",
     "email_to": "받는 사람",
     "email_subject": "제목",
-    "email_body": "내용"
+    "email_body": "내용",
+    "search_placeholder": "사용자명 또는 이메일로 검색..."
   },
   "lists": {
     "create": "만들기",

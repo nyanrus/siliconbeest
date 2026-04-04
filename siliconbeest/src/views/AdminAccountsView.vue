@@ -29,6 +29,10 @@ const loading = ref(true)
 const error = ref('')
 const filter = ref<'all' | 'local' | 'remote' | 'pending'>('all')
 const actionMessage = ref('')
+const searchQuery = ref('')
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const PAGE_SIZE = 40
 
 // Email modal state
 const emailModalOpen = ref(false)
@@ -37,36 +41,60 @@ const emailSubject = ref('')
 const emailBody = ref('')
 const emailSending = ref(false)
 
-const filteredAccounts = computed(() => {
-  switch (filter.value) {
-    case 'local':
-      return accounts.value.filter((a) => !a.domain)
-    case 'remote':
-      return accounts.value.filter((a) => !!a.domain)
-    case 'pending':
-      return accounts.value.filter((a) => !a.approved)
-    default:
-      return accounts.value
-  }
-})
-
 onMounted(() => loadAccounts())
+
+function buildParams(extra?: Record<string, string>): Record<string, string> {
+  const params: Record<string, string> = { limit: String(PAGE_SIZE) }
+  if (filter.value === 'local') params.local = 'true'
+  if (filter.value === 'remote') params.remote = 'true'
+  if (filter.value === 'pending') params.pending = 'true'
+  const q = searchQuery.value.trim()
+  if (q) {
+    // Search by username and email simultaneously
+    if (q.includes('@')) {
+      params.email = q
+    } else {
+      params.username = q
+    }
+  }
+  if (extra) Object.assign(params, extra)
+  return params
+}
 
 async function loadAccounts() {
   loading.value = true
   error.value = ''
   try {
-    const params: Record<string, string> = {}
-    if (filter.value === 'local') params.local = 'true'
-    if (filter.value === 'remote') params.remote = 'true'
-    if (filter.value === 'pending') params.pending = 'true'
-    const { data } = await getAdminAccounts(auth.token!, params)
+    const { data } = await getAdminAccounts(auth.token!, buildParams())
     accounts.value = data as AdminAccount[]
+    hasMore.value = (data as AdminAccount[]).length >= PAGE_SIZE
   } catch (e: any) {
     error.value = e?.description || e?.error || t('common.error')
   } finally {
     loading.value = false
   }
+}
+
+async function loadNextPage() {
+  if (loadingMore.value || !hasMore.value || accounts.value.length === 0) return
+  loadingMore.value = true
+  try {
+    const lastAccount = accounts.value[accounts.value.length - 1]
+    if (!lastAccount) return
+    const lastId = lastAccount.id
+    const { data } = await getAdminAccounts(auth.token!, buildParams({ max_id: lastId }))
+    const newAccounts = data as AdminAccount[]
+    accounts.value.push(...newAccounts)
+    hasMore.value = newAccounts.length >= PAGE_SIZE
+  } catch (e: any) {
+    error.value = e?.description || e?.error || t('common.error')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function handleSearch() {
+  loadAccounts()
 }
 
 async function handleRoleChange(account: AdminAccount, newRole: string) {
@@ -163,6 +191,24 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
   <div class="w-full">
     <h1 class="text-2xl font-bold mb-6">{{ t('admin.accounts') }}</h1>
 
+    <!-- Search -->
+    <form @submit.prevent="handleSearch" class="mb-4">
+      <div class="flex gap-2">
+        <input
+          v-model="searchQuery"
+          type="text"
+          :placeholder="t('admin_accounts.search_placeholder')"
+          class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <button
+          type="submit"
+          class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+        >
+          {{ t('common.search') }}
+        </button>
+      </div>
+    </form>
+
     <!-- Filter tabs -->
     <div class="flex gap-2 mb-4">
       <button :class="tabClass(filter === 'all')" @click="changeFilter('all')">{{ t('admin_accounts.filter_all') }}</button>
@@ -197,7 +243,7 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
         </thead>
         <tbody>
           <tr
-            v-for="account in filteredAccounts"
+            v-for="account in accounts"
             :key="account.id"
             class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30"
           >
@@ -292,11 +338,22 @@ const inputClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 dark:bord
               </div>
             </td>
           </tr>
-          <tr v-if="filteredAccounts.length === 0">
+          <tr v-if="accounts.length === 0">
             <td colspan="6" class="px-4 py-8 text-center text-gray-500">{{ t('admin_accounts.no_accounts') }}</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Load More -->
+    <div v-if="hasMore && !loading" class="mt-4 flex justify-center">
+      <button
+        @click="loadNextPage"
+        :disabled="loadingMore"
+        class="px-6 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+      >
+        {{ loadingMore ? t('common.loading') : t('common.load_more') }}
+      </button>
     </div>
 
     <!-- Email Modal -->

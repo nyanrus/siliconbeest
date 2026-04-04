@@ -658,7 +658,8 @@
     "status_active": "Active",
     "email_to": "To",
     "email_subject": "Subject",
-    "email_body": "Body"
+    "email_body": "Body",
+    "search_placeholder": "Search by username or email..."
   },
   "lists": {
     "create": "Create",
