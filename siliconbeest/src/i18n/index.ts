@@ -65,10 +65,6 @@ export const i18n = createI18n({
 });
 
 export async function loadLocale(locale: string) {
-  if (locale === 'en') {
-    (i18n.global.locale as any).value = locale;
-    return;
-  }
   if (!(i18n.global.availableLocales as string[]).includes(locale)) {
     const messages = await import(`./locales/${locale}.json`);
     i18n.global.setLocaleMessage(locale, messages.default);
