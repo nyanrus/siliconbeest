@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { updateCredentials } from '@/api/mastodon/accounts'
@@ -17,16 +17,14 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
-// Default language
+// Default language — watch for currentUser to load
 const defaultLanguage = ref(auth.currentUser?.source?.language || 'en')
 const savingLang = ref(false)
 const langSuccess = ref(false)
 
-onMounted(() => {
-  if (auth.currentUser?.source?.language) {
-    defaultLanguage.value = auth.currentUser.source.language
-  }
-})
+watch(() => auth.currentUser?.source?.language, (lang) => {
+  if (lang) defaultLanguage.value = lang
+}, { immediate: true })
 
 async function handleChangePassword() {
   error.value = ''

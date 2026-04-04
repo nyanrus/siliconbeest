@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore, type Theme } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -46,11 +46,9 @@ async function saveDefaultLanguage(newLocale: string) {
   }
 }
 
-onMounted(() => {
-  if (auth.currentUser?.source?.language) {
-    defaultLanguage.value = auth.currentUser.source.language
-  }
-})
+watch(() => auth.currentUser?.source?.language, (lang) => {
+  if (lang) defaultLanguage.value = lang
+}, { immediate: true })
 </script>
 
 <template>
