@@ -111,10 +111,20 @@ async function handleRoleChange(account: AdminAccount, newRole: string) {
 async function handleAction(account: AdminAccount, action: string) {
   actionMessage.value = ''
   try {
-    await apiFetch(`/v1/admin/accounts/${account.id}/${action}`, {
-      method: 'POST',
-      token: auth.token!,
-    })
+    // silence/suspend/disable/warn/sensitive use the /action endpoint with a body
+    const moderationActions = ['silence', 'suspend', 'disable', 'warn', 'sensitive']
+    if (moderationActions.includes(action)) {
+      await apiFetch(`/v1/admin/accounts/${account.id}/action`, {
+        method: 'POST',
+        token: auth.token!,
+        body: JSON.stringify({ type: action }),
+      })
+    } else {
+      await apiFetch(`/v1/admin/accounts/${account.id}/${action}`, {
+        method: 'POST',
+        token: auth.token!,
+      })
+    }
     if (action === 'approve') {
       account.approved = true
       actionMessage.value = t('admin_accounts.approved')
