@@ -64,22 +64,13 @@ export const i18n = createI18n({
   messages: { en },
 });
 
-// Explicit import map — avoids static+dynamic dual-import warning for en.json
-// and avoids build errors for locale files that don't exist yet.
-// Add entries here when new locale JSON files are created.
-const localeImporters: Record<string, () => Promise<{ default: any }>> = {
-  ko: () => import('./locales/ko.json'),
-};
-
 export async function loadLocale(locale: string) {
   if (locale === 'en') {
     (i18n.global.locale as any).value = locale;
     return;
   }
   if (!(i18n.global.availableLocales as string[]).includes(locale)) {
-    const importer = localeImporters[locale];
-    if (!importer) return; // locale file not yet available
-    const messages = await importer();
+    const messages = await import(`./locales/${locale}.json`);
     i18n.global.setLocaleMessage(locale, messages.default);
   }
   (i18n.global.locale as any).value = locale;
