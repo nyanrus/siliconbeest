@@ -167,10 +167,13 @@ app.post('/', async (c) => {
   const approved = regMode === 'approval' ? 0 : 1;
   const validatedLocale = sanitizeLocale(body.locale);
 
-  // Sanitize reason: strip HTML tags, trim, limit length
+  // Sanitize reason: strip HTML tags (including unclosed), entities, trim, limit length
   let reason: string | null = null;
   if (body.reason && typeof body.reason === 'string') {
-    reason = body.reason.replace(/<[^>]*>/g, '').trim().slice(0, 1000) || null;
+    reason = body.reason
+      .replace(/<[^>]*>?/g, '')       // Strip tags including unclosed ones
+      .replace(/&[a-zA-Z0-9#]+;/g, '') // Strip HTML entities
+      .trim().slice(0, 1000) || null;
   }
 
   // Generate default avatar and header images

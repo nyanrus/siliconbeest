@@ -38,10 +38,6 @@ export interface EmailStrings {
 	reasonLabel: string;
 }
 
-function makeTranslation(title: string, str: (title: string) => string): string {
-	return str(title);
-}
-
 const translations: Record<string, EmailStrings> = {
 	en: {
 		confirmation: {
@@ -157,12 +153,184 @@ const translations: Record<string, EmailStrings> = {
 		},
 		reasonLabel: '사유',
 	},
+	ja: {
+		confirmation: {
+			subject: (title) => `メール認証 - ${title}`,
+			heading: (title) => `メール認証 - ${title}`,
+			body: '以下のリンクをクリックして、メールアドレスを認証してください：',
+			expiry: 'このリンクは24時間後に期限切れになります。',
+		},
+		passwordReset: {
+			subject: 'パスワードリセット',
+			heading: 'パスワードリセット',
+			body: '以下のリンクをクリックして、パスワードをリセットしてください：',
+			expiry: 'このリンクは1時間後に期限切れになります。',
+		},
+		welcome: {
+			subject: (title) => `${title}へようこそ！`,
+			heading: (title) => `${title}へようこそ！`,
+			body: 'アカウントが承認されました。',
+		},
+		rejection: {
+			subject: '登録審査結果',
+			heading: '登録審査結果',
+			body: (title) => `${title}への登録は現在承認されませんでした。`,
+		},
+		accountWarning: {
+			warn: {
+				subject: 'アカウント警告',
+				heading: 'アカウント警告',
+				description: '管理者からアカウントに警告が送信されました。',
+			},
+			disable: {
+				subject: 'アカウント凍結',
+				heading: 'アカウント凍結',
+				description: '管理者によりアカウントが凍結されました。ログインが制限されます。',
+			},
+			silence: {
+				subject: 'アカウント制限',
+				heading: 'アカウント制限',
+				description: '管理者によりアカウントが制限されました。投稿はフォロワーにのみ表示されます。',
+			},
+			suspend: {
+				subject: 'アカウント停止',
+				heading: 'アカウント停止',
+				description: '管理者によりアカウントが停止されました。このアカウントは使用できなくなりました。',
+			},
+			sensitive: {
+				subject: 'メディアのセンシティブ指定',
+				heading: 'メディアのセンシティブ指定',
+				description: '管理者によりメディアがセンシティブなコンテンツとして指定されました。',
+			},
+			none: {
+				subject: 'アカウント警告',
+				heading: 'アカウント警告',
+				description: '管理者からアカウントに警告が送信されました。',
+			},
+		},
+		reasonLabel: '理由',
+	},
+	'zh-CN': {
+		confirmation: {
+			subject: (title) => `验证您的邮箱 - ${title}`,
+			heading: (title) => `验证您的邮箱 - ${title}`,
+			body: '请点击以下链接验证您的邮箱地址：',
+			expiry: '此链接将在24小时后过期。',
+		},
+		passwordReset: {
+			subject: '重置密码',
+			heading: '重置密码',
+			body: '请点击以下链接重置您的密码：',
+			expiry: '此链接将在1小时后过期。',
+		},
+		welcome: {
+			subject: (title) => `欢迎加入 ${title}！`,
+			heading: (title) => `欢迎加入 ${title}！`,
+			body: '您的账号已被批准。',
+		},
+		rejection: {
+			subject: '注册审核结果',
+			heading: '注册审核结果',
+			body: (title) => `您在 ${title} 的注册申请暂未通过审核。`,
+		},
+		accountWarning: {
+			warn: {
+				subject: '账号警告',
+				heading: '账号警告',
+				description: '管理员向您的账号发送了一条警告。',
+			},
+			disable: {
+				subject: '账号已冻结',
+				heading: '账号已冻结',
+				description: '管理员已冻结您的账号，登录将受到限制。',
+			},
+			silence: {
+				subject: '账号已限制',
+				heading: '账号已限制',
+				description: '管理员已限制您的账号，您的帖子仅对关注者可见。',
+			},
+			suspend: {
+				subject: '账号已停用',
+				heading: '账号已停用',
+				description: '管理员已停用您的账号，您将无法再使用此账号。',
+			},
+			sensitive: {
+				subject: '媒体已标记为敏感内容',
+				heading: '媒体已标记为敏感内容',
+				description: '管理员已将您的媒体标记为敏感内容。',
+			},
+			none: {
+				subject: '账号警告',
+				heading: '账号警告',
+				description: '管理员向您的账号发送了一条警告。',
+			},
+		},
+		reasonLabel: '原因',
+	},
+	'zh-TW': {
+		confirmation: {
+			subject: (title) => `驗證您的電子郵件 - ${title}`,
+			heading: (title) => `驗證您的電子郵件 - ${title}`,
+			body: '請點擊以下連結驗證您的電子郵件地址：',
+			expiry: '此連結將在24小時後失效。',
+		},
+		passwordReset: {
+			subject: '重設密碼',
+			heading: '重設密碼',
+			body: '請點擊以下連結重設您的密碼：',
+			expiry: '此連結將在1小時後失效。',
+		},
+		welcome: {
+			subject: (title) => `歡迎加入 ${title}！`,
+			heading: (title) => `歡迎加入 ${title}！`,
+			body: '您的帳號已通過審核。',
+		},
+		rejection: {
+			subject: '註冊審核結果',
+			heading: '註冊審核結果',
+			body: (title) => `您在 ${title} 的註冊申請目前未獲通過。`,
+		},
+		accountWarning: {
+			warn: {
+				subject: '帳號警告',
+				heading: '帳號警告',
+				description: '管理員向您的帳號發送了一則警告。',
+			},
+			disable: {
+				subject: '帳號已凍結',
+				heading: '帳號已凍結',
+				description: '管理員已凍結您的帳號，登入將受到限制。',
+			},
+			silence: {
+				subject: '帳號已限制',
+				heading: '帳號已限制',
+				description: '管理員已限制您的帳號，您的貼文僅對追蹤者可見。',
+			},
+			suspend: {
+				subject: '帳號已停權',
+				heading: '帳號已停權',
+				description: '管理員已停權您的帳號，您將無法再使用此帳號。',
+			},
+			sensitive: {
+				subject: '媒體已標記為敏感內容',
+				heading: '媒體已標記為敏感內容',
+				description: '管理員已將您的媒體標記為敏感內容。',
+			},
+			none: {
+				subject: '帳號警告',
+				heading: '帳號警告',
+				description: '管理員向您的帳號發送了一則警告。',
+			},
+		},
+		reasonLabel: '原因',
+	},
 };
 
 /**
  * Get email translations for a given locale. Falls back to English
  * if the locale is not available.
  */
-export function getEmailTranslations(locale: string): EmailStrings {
+export function getEmailTranslations(locale: string | unknown): EmailStrings {
+	if (typeof locale !== 'string') return translations.en;
 	return translations[locale] || translations.en;
 }

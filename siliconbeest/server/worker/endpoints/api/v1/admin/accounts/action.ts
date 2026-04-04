@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { generateUlid } from '../../../../../utils/ulid';
 import { sendAccountWarning } from '../../../../../services/email';
+import { sanitizeLocale } from '../../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -94,7 +95,7 @@ app.post('/:id/action', async (c) => {
 		const user = await c.env.DB.prepare('SELECT email, locale FROM users WHERE account_id = ?1').bind(id).first<{ email: string | null; locale: string | null }>();
 		if (user?.email) {
 			try {
-				await sendAccountWarning(c.env, user.email, actionType, warningText, (user.locale as string) || 'en');
+				await sendAccountWarning(c.env, user.email, actionType, warningText, sanitizeLocale(user.locale as string | null));
 			} catch {
 				// Email failure should not block the action
 			}

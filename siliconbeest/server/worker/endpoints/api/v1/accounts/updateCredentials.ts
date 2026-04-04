@@ -158,13 +158,14 @@ app.patch('/update_credentials', authRequired, requireScope('write:accounts'), a
   }
 
   // Handle default language update (source[language] or source.language)
-  const sourceLanguage = (body['source[language]'] as string) || (body.source as any)?.language;
-  if (sourceLanguage && typeof sourceLanguage === 'string') {
-    if (isValidLocale(sourceLanguage)) {
-      await c.env.DB.prepare(
-        'UPDATE users SET locale = ?1, updated_at = ?2 WHERE account_id = ?3',
-      ).bind(sourceLanguage, now, currentUser.account_id).run();
-    }
+  let sourceLanguage: unknown = body['source[language]'];
+  if (!sourceLanguage && typeof body.source === 'object' && body.source !== null) {
+    sourceLanguage = (body.source as Record<string, unknown>).language;
+  }
+  if (typeof sourceLanguage === 'string' && isValidLocale(sourceLanguage)) {
+    await c.env.DB.prepare(
+      'UPDATE users SET locale = ?1, updated_at = ?2 WHERE account_id = ?3',
+    ).bind(sourceLanguage, now, currentUser.account_id).run();
   }
 
   // Fetch updated account

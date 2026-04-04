@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendWelcome } from '../../../../../services/email';
+import { sanitizeLocale } from '../../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -30,7 +31,7 @@ app.post('/:id/approve', async (c) => {
 	// Send welcome email in user's locale (best-effort — never block approval)
 	if (user.email) {
 		try {
-			await sendWelcome(c.env, user.email as string, account.username as string, (user.locale as string) || 'en');
+			await sendWelcome(c.env, user.email as string, account.username as string, sanitizeLocale(user.locale as string | null));
 		} catch { /* email queue failure should not block approval */ }
 	}
 
@@ -50,7 +51,7 @@ app.post('/:id/approve', async (c) => {
 		silenced: !!(account.silenced_at),
 		suspended: !!(account.suspended_at),
 		locale: (user.locale as string) || null,
-		invite_request: null,
+		invite_request: (user.reason as string) || null,
 		ips: user.current_sign_in_ip
 			? [{ ip: user.current_sign_in_ip as string, used_at: (user.current_sign_in_at as string) || '' }]
 			: [],

@@ -28,6 +28,7 @@ app.get('/:id', async (c) => {
 			u.created_at AS user_created_at,
 			u.confirmed_at,
 			u.locale,
+			u.reason,
 			u.invite_id,
 			u.created_by_application_id
 		FROM accounts a
@@ -55,7 +56,7 @@ app.get('/:id', async (c) => {
 		silenced: !!(row.silenced_at),
 		suspended: !!(row.suspended_at),
 		locale: (row.locale as string) || null,
-		invite_request: null,
+		invite_request: (row.reason as string) || null,
 		ips: row.current_sign_in_ip
 			? [{ ip: row.current_sign_in_ip as string, used_at: (row.current_sign_in_at as string) || '' }]
 			: [],

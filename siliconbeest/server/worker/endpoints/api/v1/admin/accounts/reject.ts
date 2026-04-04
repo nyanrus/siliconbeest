@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../../../env';
 import { AppError } from '../../../../../middleware/errorHandler';
 import { sendRejection } from '../../../../../services/email';
+import { sanitizeLocale } from '../../../../../utils/locales';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -25,7 +26,7 @@ app.post('/:id/reject', async (c) => {
 	// Send rejection email in user's locale before deleting (best-effort — never block rejection)
 	if (user.email) {
 		try {
-			await sendRejection(c.env, user.email as string, (user.locale as string) || 'en');
+			await sendRejection(c.env, user.email as string, sanitizeLocale(user.locale as string | null));
 		} catch { /* email queue failure should not block rejection */ }
 	}
 

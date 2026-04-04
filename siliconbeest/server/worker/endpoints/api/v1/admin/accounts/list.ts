@@ -118,7 +118,8 @@ app.get('/', async (c) => {
 			u.last_sign_in_at,
 			u.created_at AS user_created_at,
 			u.confirmed_at,
-			u.locale
+			u.locale,
+			u.reason
 		FROM accounts a
 		LEFT JOIN users u ON u.account_id = a.id
 		${where}
@@ -154,7 +155,7 @@ function formatAdminAccount(row: Record<string, unknown>, domain: string) {
 		silenced: !!(row.silenced_at),
 		suspended: !!(row.suspended_at),
 		locale: (row.locale as string) || null,
-		invite_request: null,
+		invite_request: (row.reason as string) || null,
 		ips: row.current_sign_in_ip
 			? [{ ip: row.current_sign_in_ip as string, used_at: (row.current_sign_in_at as string) || '' }]
 			: [],
