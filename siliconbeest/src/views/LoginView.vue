@@ -56,10 +56,6 @@ async function handlePasskey() {
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ t('auth.welcome') }}</p>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-        <!-- Global error -->
-        <div v-if="error" class="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
-          {{ error }}
-        </div>
         <!-- Loading overlay -->
         <div v-if="auth.loading" class="text-center py-4 text-gray-500">
           {{ t('common.loading') }}
