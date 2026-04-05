@@ -5,13 +5,14 @@
  */
 
 import { AppError } from '../middleware/errorHandler';
+import type { PaginationParams } from '../utils/pagination';
 
 // ----------------------------------------------------------------
 // List conversations
 // ----------------------------------------------------------------
 
 export interface ConversationListOpts {
-	paginationQuery: PaginationQuery;
+	paginationQuery: PaginationParams;
 	whereClause: string;
 	orderClause: string;
 	limitValue: number;

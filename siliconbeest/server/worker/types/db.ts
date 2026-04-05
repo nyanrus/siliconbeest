@@ -40,6 +40,8 @@ export interface AccountRow {
   moved_at?: string | null;
   /** JSON array of emoji tag objects from ActivityPub actor document */
   emoji_tags?: string | null;
+  fetched_at?: string | null;
+  fields?: string | null;
 }
 
 export interface UserRow {

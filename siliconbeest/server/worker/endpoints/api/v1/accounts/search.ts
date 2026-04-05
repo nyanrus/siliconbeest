@@ -19,7 +19,7 @@ app.get('/search', authRequired, async (c) => {
 
   const results = await searchAccounts(c.env.DB, q, limit, 0, following ? { followedBy: currentAccountId } : undefined);
 
-  const accounts = (results as Record<string, unknown>[]).map((row) => {
+  const accounts = results.map((row) => {
     const acct = row.domain ? `${row.username}@${row.domain}` : (row.username as string);
     const acctDomain = (row.domain as string) || null;
 

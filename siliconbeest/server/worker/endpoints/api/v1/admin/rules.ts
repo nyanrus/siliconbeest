@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../../env';
 import { AppError } from '../../../../middleware/errorHandler';
 import { authRequired, adminOnlyRequired as adminRequired } from '../../../../middleware/auth';
 import { getRules, getRule, createRule, updateRule, deleteRule } from '../../../../services/instance';
+import type { RuleRow } from '../../../../types/db';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -23,7 +24,7 @@ app.get('/', async (c) => {
  */
 app.get('/:id', async (c) => {
 	const row = await getRule(c.env.DB, c.req.param('id'));
-	return c.json(formatRule(row));
+	return c.json(formatRule(row as unknown as RuleRow));
 });
 
 /**
@@ -38,7 +39,7 @@ app.post('/', async (c) => {
 	if (!body.text) throw new AppError(422, 'text is required');
 
 	const row = await createRule(c.env.DB, body.text, body.priority);
-	return c.json(formatRule(row), 200);
+	return c.json(formatRule(row as unknown as RuleRow), 200);
 });
 
 /**
@@ -51,7 +52,7 @@ app.put('/:id', async (c) => {
 	}>();
 
 	const row = await updateRule(c.env.DB, c.req.param('id'), body);
-	return c.json(formatRule(row));
+	return c.json(formatRule(row as unknown as RuleRow));
 });
 
 /**
@@ -62,7 +63,7 @@ app.delete('/:id', async (c) => {
 	return c.json({}, 200);
 });
 
-function formatRule(row: Record<string, unknown>) {
+function formatRule(row: RuleRow) {
 	return {
 		id: row.id as string,
 		text: row.text as string,
