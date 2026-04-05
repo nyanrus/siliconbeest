@@ -195,10 +195,9 @@ function handleSubmit() {
       <label class="flex items-start gap-2 cursor-pointer">
         <input v-model="agreement" type="checkbox" required class="mt-1 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500" />
         <span class="text-sm text-gray-600 dark:text-gray-400">
-          {{ t('auth.agreement') }}
-          <router-link to="/about" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('auth.server_rules') }}</router-link><template v-if="true">,
+          <router-link to="/about" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('auth.server_rules') }}</router-link>,
           <router-link to="/terms" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('legal.terms_of_service') }}</router-link>,
-          <router-link to="/privacy" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('legal.privacy_policy') }}</router-link></template>
+          <router-link to="/privacy" class="text-indigo-500 hover:text-indigo-400 underline">{{ t('legal.privacy_policy') }}</router-link>{{ t('auth.agreement_suffix') }}
         </span>
       </label>
 
