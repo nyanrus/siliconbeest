@@ -18,12 +18,12 @@ async function sha256(input: string): Promise<string> {
     .join('');
 }
 
-interface TokenPayload {
+type TokenPayload = {
   tokenId: string;
   user: { id: string; account_id: string; email: string; role: string };
   account: { id: string; username: string; domain: string | null };
   scopes: string;
-}
+};
 
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 
@@ -75,6 +75,7 @@ async function resolveToken(
 
   // 2. D1 fallback — includes disabled/suspended checks
   // Try token_hash first (new hashed storage), fall back to plaintext token (legacy)
+  // oxlint-disable-next-line fp/no-let
   let row = await db
     .prepare(
       `SELECT
