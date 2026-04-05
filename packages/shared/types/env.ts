@@ -32,8 +32,4 @@ export interface BaseEnv {
 
   // Environment variables
   INSTANCE_DOMAIN: string;
-
-  // Secrets (optional — may be stored in DB settings instead)
-  VAPID_PUBLIC_KEY?: string;
-  VAPID_PRIVATE_KEY?: string;
 }

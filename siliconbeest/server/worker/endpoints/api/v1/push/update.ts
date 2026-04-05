@@ -110,7 +110,7 @@ app.put('/', authRequired, requireScope('push'), async (c) => {
       'admin.report': !!(row.alert_admin_report),
     },
     policy: row.policy,
-    server_key: await getVapidPublicKey(c.env.DB, c.env),
+    server_key: await getVapidPublicKey(c.env.DB),
   });
 });
 

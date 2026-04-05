@@ -19,14 +19,6 @@ app.get('/', async (c) => {
 		settings[row.key as string] = row.value as string;
 	}
 
-	// VAPID keys: DB settings take priority over env vars
-	if (!settings.vapid_public_key && c.env.VAPID_PUBLIC_KEY) {
-		settings.vapid_public_key = c.env.VAPID_PUBLIC_KEY;
-	}
-	if (!settings.vapid_private_key && c.env.VAPID_PRIVATE_KEY) {
-		settings.vapid_private_key = c.env.VAPID_PRIVATE_KEY;
-	}
-
 	return c.json(settings);
 });
 

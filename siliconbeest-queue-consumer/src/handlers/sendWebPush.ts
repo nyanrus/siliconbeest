@@ -70,8 +70,19 @@ export async function handleSendWebPush(
     status_id: notification.status_id,
   });
 
-  if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) {
-    console.warn('[web-push] VAPID keys not configured, skipping push');
+  // Load VAPID keys from DB settings
+  const vapidRows = await env.DB
+    .prepare("SELECT key, value FROM settings WHERE key IN ('vapid_public_key', 'vapid_private_key')")
+    .all<{ key: string; value: string }>();
+  const vapidMap: Record<string, string> = {};
+  for (const row of vapidRows.results || []) {
+    if (row.value) vapidMap[row.key] = row.value;
+  }
+  const vapidPublicKey = vapidMap.vapid_public_key || '';
+  const vapidPrivateKey = vapidMap.vapid_private_key || '';
+
+  if (!vapidPrivateKey || !vapidPublicKey) {
+    console.warn('[web-push] VAPID keys not configured in DB settings, skipping push');
     return;
   }
 
@@ -87,8 +98,8 @@ export async function handleSendWebPush(
           },
         },
         payload,
-        env.VAPID_PRIVATE_KEY,
-        env.VAPID_PUBLIC_KEY,
+        vapidPrivateKey,
+        vapidPublicKey,
         'mailto:admin@siliconbeest.com',
       );
 

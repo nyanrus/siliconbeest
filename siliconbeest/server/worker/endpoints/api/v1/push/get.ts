@@ -49,7 +49,7 @@ app.get('/', authRequired, requireScope('push'), async (c) => {
     endpoint: row.endpoint,
     alerts: rowToAlerts(row),
     policy: row.policy,
-    server_key: await getVapidPublicKey(c.env.DB, c.env),
+    server_key: await getVapidPublicKey(c.env.DB),
   });
 });
 

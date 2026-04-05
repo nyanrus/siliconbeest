@@ -58,7 +58,7 @@ app.post('/', async (c) => {
 		redirect_uri: redirectUri,
 		client_id: clientId,
 		client_secret: clientSecret,
-		vapid_key: await getVapidPublicKey(c.env.DB, c.env),
+		vapid_key: await getVapidPublicKey(c.env.DB),
 	});
 });
 
@@ -110,7 +110,7 @@ app.get('/verify_credentials', async (c) => {
 	return c.json({
 		name: row.name,
 		website: row.website ?? null,
-		vapid_key: await getVapidPublicKey(c.env.DB, c.env),
+		vapid_key: await getVapidPublicKey(c.env.DB),
 	});
 });
 

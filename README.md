@@ -196,7 +196,7 @@ It will prompt for:
 
 The script automatically:
 - Creates D1 database, R2 bucket, KV namespaces (CACHE, SESSIONS, FEDIFY_KV), Queues
-- Generates VAPID key pair (ECDSA P-256) for Web Push
+- Generates VAPID key pair (ECDSA P-256) for Web Push and stores in D1 settings
 - Generates OTP encryption key for 2FA secrets
 - Updates all `wrangler.jsonc` files with resource IDs
 - Sets secrets via `wrangler secret put`
@@ -327,9 +327,9 @@ See the full [scripts documentation](scripts/README.md) for all options and flag
 
 | Secret | Workers | Set by |
 |--------|---------|--------|
-| `VAPID_PRIVATE_KEY` | worker, queue-consumer | `setup.sh` |
-| `VAPID_PUBLIC_KEY` | worker, queue-consumer | `setup.sh` |
 | `OTP_ENCRYPTION_KEY` | worker | `setup.sh` |
+
+> **VAPID keys** are stored in the D1 `settings` table (keys: `vapid_public_key`, `vapid_private_key`) and managed via the Admin settings page or `setup.sh`. They are **not** set as environment secrets.
 
 ### Environment Variables (in wrangler.jsonc)
 

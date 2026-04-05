@@ -125,7 +125,7 @@ app.get('/', async (c) => {
     contact_account: contactAccount,
     rules,
     push_enabled: dbSettings.web_push_enabled === '1',
-    vapid_key: (await getVapidPublicKey(c.env.DB, c.env)) || null,
+    vapid_key: (await getVapidPublicKey(c.env.DB)) || null,
   });
 });
 

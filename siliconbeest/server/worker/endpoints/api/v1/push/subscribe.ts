@@ -128,7 +128,7 @@ app.post('/', authRequired, requireScope('push'), async (c) => {
       endpoint,
       alerts,
       policy,
-      server_key: await getVapidPublicKey(c.env.DB, c.env),
+      server_key: await getVapidPublicKey(c.env.DB),
     },
     200,
   );

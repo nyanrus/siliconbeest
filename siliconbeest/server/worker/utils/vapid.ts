@@ -1,6 +1,5 @@
 /**
- * VAPID key resolution: DB settings take priority over env vars.
- * This allows admin to configure VAPID keys from the Web UI.
+ * VAPID key resolution from D1 settings table.
  */
 
 interface VapidKeys {
@@ -9,14 +8,12 @@ interface VapidKeys {
 }
 
 /**
- * Get VAPID keys from DB settings, falling back to env vars.
- * Returns null if neither source has keys configured.
+ * Get VAPID keys from DB settings.
+ * Returns null if keys are not configured.
  */
 export async function getVapidKeys(
 	db: D1Database,
-	env: { VAPID_PUBLIC_KEY?: string; VAPID_PRIVATE_KEY?: string },
 ): Promise<VapidKeys | null> {
-	// Try DB first
 	const { results } = await db
 		.prepare("SELECT key, value FROM settings WHERE key IN ('vapid_public_key', 'vapid_private_key')")
 		.all<{ key: string; value: string }>();
@@ -26,8 +23,8 @@ export async function getVapidKeys(
 		if (row.value) map[row.key] = row.value;
 	}
 
-	const publicKey = map.vapid_public_key || env.VAPID_PUBLIC_KEY || '';
-	const privateKey = map.vapid_private_key || env.VAPID_PRIVATE_KEY || '';
+	const publicKey = map.vapid_public_key || '';
+	const privateKey = map.vapid_private_key || '';
 
 	if (!publicKey || !privateKey) return null;
 
@@ -40,11 +37,10 @@ export async function getVapidKeys(
  */
 export async function getVapidPublicKey(
 	db: D1Database,
-	env: { VAPID_PUBLIC_KEY?: string },
 ): Promise<string> {
 	const row = await db
 		.prepare("SELECT value FROM settings WHERE key = 'vapid_public_key'")
 		.first<{ value: string }>();
 
-	return row?.value || env.VAPID_PUBLIC_KEY || '';
+	return row?.value || '';
 }
