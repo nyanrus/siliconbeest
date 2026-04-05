@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useInstanceStore } from '@/stores/instance'
 import { renderMarkdown } from '@/utils/markdown'
+import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
 
 const { t } = useI18n()
 const instanceStore = useInstanceStore()
@@ -21,6 +22,9 @@ onMounted(async () => {
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- Announcements -->
+    <AnnouncementBanner />
+
     <!-- Hero -->
     <div class="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
       <h1 class="text-5xl font-bold text-indigo-600 dark:text-indigo-400 mb-4">

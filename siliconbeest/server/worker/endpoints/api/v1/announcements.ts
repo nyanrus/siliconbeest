@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
-import { authRequired } from '../../../middleware/auth';
+import { authOptional, authRequired } from '../../../middleware/auth';
 import { AppError } from '../../../middleware/errorHandler';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
@@ -8,25 +8,28 @@ type HonoEnv = { Bindings: Env; Variables: AppVariables };
 const app = new Hono<HonoEnv>();
 
 // GET /api/v1/announcements — list published announcements
-app.get('/', authRequired, async (c) => {
-  const currentAccount = c.get('currentAccount')!;
+app.get('/', authOptional, async (c) => {
+  const currentAccount = c.get('currentAccount');
 
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM announcements
-     WHERE published = 1
+     WHERE published_at IS NOT NULL
      ORDER BY created_at DESC`,
   ).all();
 
-  // Get dismissed announcement IDs for the current user
-  const { results: dismissedRows } = await c.env.DB.prepare(
-    'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
-  )
-    .bind(currentAccount.id)
-    .all();
+  // Get dismissed announcement IDs for the current user (if authenticated)
+  let dismissedIds = new Set<string>();
+  if (currentAccount) {
+    const { results: dismissedRows } = await c.env.DB.prepare(
+      'SELECT announcement_id FROM announcement_dismissals WHERE account_id = ?1',
+    )
+      .bind(currentAccount.id)
+      .all();
 
-  const dismissedIds = new Set(
-    (dismissedRows ?? []).map((r: any) => r.announcement_id as string),
-  );
+    dismissedIds = new Set(
+      (dismissedRows ?? []).map((r: any) => r.announcement_id as string),
+    );
+  }
 
   const announcements = (results ?? []).map((row: any) => ({
     id: row.id as string,
@@ -53,7 +56,7 @@ app.post('/:id/dismiss', authRequired, async (c) => {
   const announcementId = c.req.param('id');
 
   const announcement = await c.env.DB.prepare(
-    'SELECT id FROM announcements WHERE id = ?1 AND published = 1',
+    'SELECT id FROM announcements WHERE id = ?1 AND published_at IS NOT NULL',
   )
     .bind(announcementId)
     .first();

@@ -8,6 +8,7 @@ import { useUiStore } from '@/stores/ui'
 import type { Status } from '@/types/mastodon'
 import AppShell from '@/components/layout/AppShell.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
+import AnnouncementBanner from '@/components/common/AnnouncementBanner.vue'
 
 const { t } = useI18n()
 const timelinesStore = useTimelinesStore()
@@ -91,6 +92,9 @@ onMounted(loadTimeline)
           {{ t('nav.compose') }}
         </button>
       </header>
+
+      <!-- Announcements -->
+      <AnnouncementBanner />
 
       <!-- Error -->
       <div v-if="timeline.error" class="p-4 text-center text-red-500">
