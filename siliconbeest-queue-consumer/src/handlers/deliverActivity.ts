@@ -19,33 +19,13 @@ import type { DeliverActivityMessage } from '../shared/types/queue';
 import { createProof } from './integrityProofs';
 import { measureAsync, PerfTimer } from '../observability/performance';
 
-// Crypto and signing utilities from shared package (consolidates previously duplicated code)
-import { signRequestCavage, signRequestRFC9421 } from '../../../packages/shared/crypto';
-
-// ============================================================
-// SIGNATURE PREFERENCE CACHE
-// ============================================================
-
-type SignaturePreference = 'rfc9421' | 'cavage';
-
-const SIG_PREF_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
-
-async function getSignaturePreference(
-  domain: string,
-  cache: KVNamespace,
-): Promise<SignaturePreference | null> {
-  const value = await cache.get(`sig-pref:${domain}`);
-  if (value === 'rfc9421' || value === 'cavage') return value;
-  return null;
-}
-
-async function setSignaturePreference(
-  domain: string,
-  pref: SignaturePreference,
-  cache: KVNamespace,
-): Promise<void> {
-  try { await cache.put(`sig-pref:${domain}`, pref, { expirationTtl: SIG_PREF_TTL }); } catch { /* KV rate limit */ }
-}
+// Crypto, signing, and signature preference from shared package
+import {
+  signRequestCavage,
+  signRequestRFC9421,
+  getSignaturePreference,
+  setSignaturePreference,
+} from '../../../packages/shared/crypto';
 
 // ============================================================
 // HANDLER

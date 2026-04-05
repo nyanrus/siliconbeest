@@ -27,6 +27,13 @@ export { signRequestCavage } from './sign-cavage';
 // RFC 9421 signing
 export { signRequestRFC9421 } from './sign-rfc9421';
 
+// Signature preference cache (double-knock strategy)
+export {
+	getSignaturePreference,
+	setSignaturePreference,
+	type SignaturePreference,
+} from './signature-preference';
+
 // Verification (both standards)
 export {
 	isTimestampFresh,
