@@ -43,6 +43,10 @@ const editSpoilerText = ref('')
 const editSensitive = ref(false)
 const editLoading = ref(false)
 
+const loadingFavourite = ref(false)
+const loadingReblog = ref(false)
+const loadingBookmark = ref(false)
+
 const showReportDialog = ref(false)
 const showImageViewer = ref(false)
 const imageViewerIndex = ref(0)
@@ -124,20 +128,37 @@ const replyToDisplay = computed(() => {
   return '...'
 })
 
-function handleFavourite() {
-  // For reblogs, favourite the original status
-  const target = props.status.reblog ?? props.status
-  statusesStore.toggleFavourite(target)
+async function handleFavourite() {
+  if (loadingFavourite.value) return
+  loadingFavourite.value = true
+  try {
+    const target = props.status.reblog ?? props.status
+    await statusesStore.toggleFavourite(target)
+  } finally {
+    loadingFavourite.value = false
+  }
 }
 
-function handleReblog() {
-  const target = props.status.reblog ?? props.status
-  statusesStore.toggleReblog(target)
+async function handleReblog() {
+  if (loadingReblog.value) return
+  loadingReblog.value = true
+  try {
+    const target = props.status.reblog ?? props.status
+    await statusesStore.toggleReblog(target)
+  } finally {
+    loadingReblog.value = false
+  }
 }
 
-function handleBookmark() {
-  const target = props.status.reblog ?? props.status
-  statusesStore.toggleBookmark(target)
+async function handleBookmark() {
+  if (loadingBookmark.value) return
+  loadingBookmark.value = true
+  try {
+    const target = props.status.reblog ?? props.status
+    await statusesStore.toggleBookmark(target)
+  } finally {
+    loadingBookmark.value = false
+  }
 }
 
 function handleReply() {
@@ -389,6 +410,9 @@ async function handleDelete() {
           :account-id="displayStatus.account.id"
           :account-acct="displayStatus.account.acct"
           :visibility="displayStatus.visibility"
+          :loading-favourite="loadingFavourite"
+          :loading-reblog="loadingReblog"
+          :loading-bookmark="loadingBookmark"
           class="mt-2"
           @favourite="handleFavourite"
           @reblog="handleReblog"

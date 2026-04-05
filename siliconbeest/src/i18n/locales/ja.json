@@ -321,7 +321,11 @@
     "push_status": "新しい投稿",
     "ios_pwa_notice": "iOSでは、プッシュ通知はSafariからホーム画面に追加（PWA）した場合のみ動作します。設定 > Safari > 詳細 > Push APIが有効になっていることを確認してください。",
     "notif_filter_title": "通知フィルター",
-    "notif_filter_description": "表示する通知の種類を選択してください。"
+    "notif_filter_description": "表示する通知の種類を選択してください。",
+    "posting": "投稿",
+    "posting_default_visibility": "デフォルトの公開範囲",
+    "posting_default_visibility_desc": "新しい投稿はデフォルトでこの公開範囲を使用します。スレッドへの返信時は、親投稿の公開範囲以下に制限されます。",
+    "posting_visibility_saved": "デフォルトの公開範囲を保存しました。"
   },
   "admin": {
     "title": "管理",

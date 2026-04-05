@@ -20,6 +20,7 @@ const settingSections = computed(() => {
     { key: 'profile', name: 'settings-profile' },
     { key: 'account', name: 'settings-account' },
     { key: 'appearance', name: 'settings-appearance' },
+    { key: 'posting', name: 'settings-posting' },
     { key: 'notifications', name: 'settings-notifications' },
     { key: 'filters', name: 'settings-filters' },
     { key: 'migration', name: 'settings-migration' },

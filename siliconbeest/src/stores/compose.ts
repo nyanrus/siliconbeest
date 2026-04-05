@@ -8,12 +8,22 @@ import { useStatusesStore } from './statuses';
 import { useTimelinesStore } from './timelines';
 
 const MAX_CHARACTERS = 500;
+const VISIBILITY_STORAGE_KEY = 'siliconbeest:defaultVisibility';
+
+function loadDefaultVisibility(): StatusVisibility {
+  try {
+    const stored = localStorage.getItem(VISIBILITY_STORAGE_KEY);
+    if (stored === 'public' || stored === 'unlisted' || stored === 'private' || stored === 'direct') return stored;
+  } catch { /* ignore */ }
+  return 'public';
+}
 
 export const useComposeStore = defineStore('compose', () => {
+  const defaultVisibility = ref<StatusVisibility>(loadDefaultVisibility());
   const text = ref('');
   const contentWarning = ref('');
   const showContentWarning = ref(false);
-  const visibility = ref<StatusVisibility>('public');
+  const visibility = ref<StatusVisibility>(defaultVisibility.value);
   const sensitive = ref(false);
   const inReplyToId = ref<string | null>(null);
   const inReplyToStatus = ref<Status | null>(null);
@@ -42,7 +52,7 @@ export const useComposeStore = defineStore('compose', () => {
     text.value = '';
     contentWarning.value = '';
     showContentWarning.value = false;
-    visibility.value = 'public';
+    visibility.value = defaultVisibility.value;
     sensitive.value = false;
     inReplyToId.value = null;
     inReplyToStatus.value = null;
@@ -54,6 +64,11 @@ export const useComposeStore = defineStore('compose', () => {
     pollExpiresIn.value = 86400;
     pollMultiple.value = false;
     showPoll.value = false;
+  }
+
+  function setDefaultVisibility(v: StatusVisibility) {
+    defaultVisibility.value = v;
+    try { localStorage.setItem(VISIBILITY_STORAGE_KEY, v); } catch { /* ignore */ }
   }
 
   function setReplyTo(status: Status) {
@@ -154,6 +169,8 @@ export const useComposeStore = defineStore('compose', () => {
     contentWarning,
     showContentWarning,
     visibility,
+    defaultVisibility,
+    setDefaultVisibility,
     sensitive,
     inReplyToId,
     inReplyToStatus,

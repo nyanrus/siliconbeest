@@ -321,7 +321,11 @@
     "push_status": "New posts",
     "ios_pwa_notice": "On iOS, push notifications only work when the app is added to your home screen (PWA) via Safari. Check Settings > Safari > Advanced > Push API is enabled.",
     "notif_filter_title": "Notification filters",
-    "notif_filter_description": "Choose which notification types to display."
+    "notif_filter_description": "Choose which notification types to display.",
+    "posting": "Posting",
+    "posting_default_visibility": "Default post visibility",
+    "posting_default_visibility_desc": "New posts will use this visibility by default. When replying to a thread, visibility will be clamped to the parent post's level.",
+    "posting_visibility_saved": "Default visibility saved."
   },
   "admin": {
     "title": "Administration",

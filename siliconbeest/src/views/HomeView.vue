@@ -4,17 +4,16 @@ import { useI18n } from 'vue-i18n'
 import { useTimelinesStore } from '@/stores/timelines'
 import { useStatusesStore } from '@/stores/statuses'
 import { useAuthStore } from '@/stores/auth'
-import { useComposeStore } from '@/stores/compose'
+import { useUiStore } from '@/stores/ui'
 import type { Status } from '@/types/mastodon'
 import AppShell from '@/components/layout/AppShell.vue'
-import StatusComposer from '@/components/status/StatusComposer.vue'
 import TimelineFeed from '@/components/timeline/TimelineFeed.vue'
 
 const { t } = useI18n()
 const timelinesStore = useTimelinesStore()
 const statusesStore = useStatusesStore()
 const auth = useAuthStore()
-const compose = useComposeStore()
+const ui = useUiStore()
 
 const timeline = computed(() => timelinesStore.getTimeline('home'))
 
@@ -71,19 +70,6 @@ async function loadMore() {
   await timelinesStore.fetchMore('home', { token: auth.token })
 }
 
-async function handleCompose(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string; language?: string }) {
-  if (!auth.token) return
-  compose.text = payload.content
-  if (payload.visibility) compose.visibility = payload.visibility as any
-  if (payload.sensitive) compose.sensitive = payload.sensitive
-  if (payload.spoiler_text) {
-    compose.contentWarning = payload.spoiler_text
-    compose.showContentWarning = true
-  }
-  if (payload.language) compose.language = payload.language
-  await compose.publish()
-}
-
 function showNew() {
   timelinesStore.showNewStatuses('home')
 }
@@ -95,12 +81,16 @@ onMounted(loadTimeline)
   <AppShell>
     <div>
       <!-- Header -->
-      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+      <header class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
         <h1 class="text-xl font-bold">{{ t('nav.home') }}</h1>
+        <button
+          v-if="auth.isAuthenticated"
+          @click="ui.openComposeModal()"
+          class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors"
+        >
+          {{ t('nav.compose') }}
+        </button>
       </header>
-
-      <!-- Composer -->
-      <StatusComposer @submit="handleCompose" />
 
       <!-- Error -->
       <div v-if="timeline.error" class="p-4 text-center text-red-500">

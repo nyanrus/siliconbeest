@@ -3,10 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { Status } from '@/types/mastodon'
-import { getStatus, getStatusContext, createStatus } from '@/api/mastodon/statuses'
+import { getStatus, getStatusContext } from '@/api/mastodon/statuses'
 import { useAuthStore } from '@/stores/auth'
 import { useStatusesStore } from '@/stores/statuses'
 import { useInstanceStore } from '@/stores/instance'
+import { usePublish, type PublishPayload } from '@/composables/usePublish'
 import AppShell from '@/components/layout/AppShell.vue'
 import StatusCard from '@/components/status/StatusCard.vue'
 import StatusComposer from '@/components/status/StatusComposer.vue'
@@ -18,6 +19,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const statusesStore = useStatusesStore()
 const instanceStore = useInstanceStore()
+const { publish } = usePublish()
 
 const statusId = ref<string | null>(null)
 const ancestorIds = ref<string[]>([])
@@ -110,18 +112,14 @@ function handleDeleted(deletedId: string) {
   }
 }
 
-async function handleReply(payload: { content: string; visibility?: string; sensitive?: boolean; spoiler_text?: string; media_ids?: string[] }) {
+async function handleReply(payload: PublishPayload) {
   if (!auth.token || !status.value) return
   const target = replyTarget.value ?? status.value
   try {
-    await createStatus({
-      status: payload.content,
+    await publish({
+      ...payload,
       in_reply_to_id: target.id,
-      visibility: (payload.visibility as any) ?? target.visibility,
-      sensitive: payload.sensitive,
-      spoiler_text: payload.spoiler_text,
-      media_ids: payload.media_ids,
-    }, auth.token)
+    })
     // Reload full thread to get correct ordering
     await loadThread()
     replyTarget.value = null

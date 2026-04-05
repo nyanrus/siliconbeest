@@ -380,7 +380,23 @@ const visibilityOptions = [
   { value: 'private', label: 'compose.visibility.private', icon: '🔒' },
   { value: 'direct', label: 'compose.visibility.direct', icon: '✉️' },
 ]
-const selectedVisibility = ref(visibilityOptions[0]!)
+
+const VISIBILITY_RANK: Record<string, number> = { direct: 0, private: 1, unlisted: 2, public: 3 }
+
+function initialVisibility() {
+  const defaultOpt = visibilityOptions.find(o => o.value === compose.defaultVisibility) ?? visibilityOptions[0]!
+  if (props.replyTo?.visibility) {
+    // Clamp: can't be more public than the parent
+    const parentRank = VISIBILITY_RANK[props.replyTo.visibility] ?? 3
+    const defaultRank = VISIBILITY_RANK[defaultOpt.value] ?? 3
+    if (defaultRank > parentRank) {
+      return visibilityOptions.find(o => o.value === props.replyTo!.visibility) ?? defaultOpt
+    }
+  }
+  return defaultOpt
+}
+
+const selectedVisibility = ref(initialVisibility())
 
 const canSubmit = computed(() => {
   const hasContent = content.value.trim().length > 0 || compose.mediaAttachments.length > 0
@@ -745,9 +761,10 @@ function submit() {
         <!-- Submit -->
         <button
           type="submit"
-          :disabled="!canSubmit"
-          class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :disabled="!canSubmit || compose.publishing"
+          class="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
         >
+          <svg v-if="compose.publishing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           {{ t('compose.submit') }}
         </button>
       </div>

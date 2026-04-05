@@ -184,6 +184,11 @@ const router = createRouter({
           component: () => import('@/views/SettingsAppearanceView.vue'),
         },
         {
+          path: 'posting',
+          name: 'settings-posting',
+          component: () => import('@/views/SettingsPostingView.vue'),
+        },
+        {
           path: 'notifications',
           name: 'settings-notifications',
           component: () => import('@/views/SettingsNotificationsView.vue'),

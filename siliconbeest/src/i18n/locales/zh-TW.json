@@ -321,7 +321,11 @@
     "push_status": "新貼文",
     "ios_pwa_notice": "在 iOS 上，推播通知僅在將應用程式加入主畫面（PWA）後透過 Safari 使用時才有效。請確認「設定 > Safari > 進階 > Push API」已啟用。",
     "notif_filter_title": "通知篩選",
-    "notif_filter_description": "選擇要顯示的通知類型。"
+    "notif_filter_description": "選擇要顯示的通知類型。",
+    "posting": "發文",
+    "posting_default_visibility": "預設貼文可見度",
+    "posting_default_visibility_desc": "新貼文將預設使用此可見度。回覆串文時，可見度會被限制在上層貼文的範圍內。",
+    "posting_visibility_saved": "預設可見度已儲存。"
   },
   "admin": {
     "title": "管理",
