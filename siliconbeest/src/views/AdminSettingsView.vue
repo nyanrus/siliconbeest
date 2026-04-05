@@ -26,6 +26,9 @@ const settings = ref({
   site_favicon_url: '',
   site_logo_url: '',
   site_theme_color: '#6366f1',
+  site_landing_markdown: '',
+  terms_of_service: '',
+  privacy_policy: '',
   registration_mode: 'closed',
   registration_message: '',
   max_toot_chars: '500',
@@ -189,6 +192,28 @@ const labelClass = 'block text-sm font-medium mb-1'
               <input v-model="settings.site_theme_color" type="color" class="h-10 w-14 rounded border border-gray-300 dark:border-gray-600 cursor-pointer" />
               <input v-model="settings.site_theme_color" :class="inputClass" class="!w-40" />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Landing Page & Legal -->
+      <section class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-semibold mb-4">{{ t('admin_settings.landing_legal') }}</h2>
+        <div class="space-y-4">
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.site_landing_markdown') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.site_landing_markdown_desc') }}</p>
+            <textarea v-model="settings.site_landing_markdown" rows="6" :class="inputClass" :placeholder="t('admin_settings.fields.site_landing_markdown_placeholder')" />
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.terms_of_service') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.terms_of_service_desc') }}</p>
+            <textarea v-model="settings.terms_of_service" rows="8" :class="inputClass" />
+          </div>
+          <div>
+            <label :class="labelClass">{{ t('admin_settings.fields.privacy_policy') }}</label>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('admin_settings.fields.privacy_policy_desc') }}</p>
+            <textarea v-model="settings.privacy_policy" rows="8" :class="inputClass" />
           </div>
         </div>
       </section>

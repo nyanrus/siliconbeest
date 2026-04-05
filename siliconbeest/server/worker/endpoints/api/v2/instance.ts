@@ -11,7 +11,7 @@ app.get('/', async (c) => {
   // Read settings from DB first, fall back to env vars
   const dbSettings: Record<string, string> = {};
   const { results: settingsRows } = await c.env.DB.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'registration_message', 'site_contact_email', 'site_contact_username')"
+    "SELECT key, value FROM settings WHERE key IN ('site_title', 'site_description', 'registration_mode', 'registration_message', 'site_contact_email', 'site_contact_username', 'site_landing_markdown', 'terms_of_service', 'privacy_policy')"
   ).all();
   for (const row of settingsRows ?? []) {
     dbSettings[row.key as string] = row.value as string;
@@ -112,6 +112,9 @@ app.get('/', async (c) => {
       account: null,
     },
     rules,
+    site_landing_markdown: dbSettings.site_landing_markdown || '',
+    terms_of_service: dbSettings.terms_of_service || '',
+    privacy_policy: dbSettings.privacy_policy || '',
   });
 });
 

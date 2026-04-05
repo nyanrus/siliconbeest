@@ -289,6 +289,9 @@ export interface Instance {
     account: Account | null;
   };
   rules: InstanceRule[];
+  site_landing_markdown?: string;
+  terms_of_service?: string;
+  privacy_policy?: string;
 }
 
 export interface InstanceConfiguration {

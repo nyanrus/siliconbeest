@@ -606,6 +606,7 @@
     "site_info": "站点信息",
     "branding": "品牌",
     "registration": "注册",
+    "landing_legal": "首页与法律条款",
     "limits": "限制",
     "smtp": "邮件 (SMTP)",
     "smtp_test": "发送测试邮件",
@@ -642,9 +643,21 @@
       "smtp_secure": "连接安全",
       "vapid_public_key": "VAPID 公钥",
       "vapid_private_key": "VAPID 私钥",
-      "registration_message": "注册提示信息"
+      "registration_message": "注册提示信息",
+      "site_landing_markdown": "首页内容",
+      "site_landing_markdown_desc": "未登录访客看到的 Markdown 内容。",
+      "site_landing_markdown_placeholder": "# 欢迎\n写一些关于您服务器的介绍...",
+      "terms_of_service": "服务条款",
+      "terms_of_service_desc": "用 Markdown 编写服务条款。",
+      "privacy_policy": "隐私政策",
+      "privacy_policy_desc": "用 Markdown 编写隐私政策。"
     },
     "registration_message_help": "此信息将在注册页面上显示给用户。"
+  },
+  "legal": {
+    "terms_of_service": "服务条款",
+    "privacy_policy": "隐私政策",
+    "no_content": "服务器管理员尚未设置内容。"
   },
   "admin_accounts": {
     "filter_all": "全部",

@@ -127,6 +127,9 @@ async function handleAction(account: AdminAccount, action: string) {
     }
     if (action === 'approve') {
       account.approved = true
+      if (filter.value === 'pending') {
+        accounts.value = accounts.value.filter((a) => a.id !== account.id)
+      }
       actionMessage.value = t('admin_accounts.approved')
     } else if (action === 'reject') {
       accounts.value = accounts.value.filter((a) => a.id !== account.id)

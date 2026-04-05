@@ -606,6 +606,7 @@
     "site_info": "サイト情報",
     "branding": "ブランディング",
     "registration": "登録",
+    "landing_legal": "ランディングページと法的事項",
     "limits": "制限",
     "smtp": "メール（SMTP）",
     "smtp_test": "テストメールを送信",
@@ -642,9 +643,21 @@
       "smtp_secure": "接続セキュリティ",
       "vapid_public_key": "VAPID公開鍵",
       "vapid_private_key": "VAPID秘密鍵",
-      "registration_message": "登録メッセージ"
+      "registration_message": "登録メッセージ",
+      "site_landing_markdown": "ランディングページコンテンツ",
+      "site_landing_markdown_desc": "ログアウト中の訪問者に表示されるMarkdownコンテンツ。",
+      "site_landing_markdown_placeholder": "# ようこそ\nサーバーについて書いてください...",
+      "terms_of_service": "利用規約",
+      "terms_of_service_desc": "Markdownで利用規約を記述してください。",
+      "privacy_policy": "プライバシーポリシー",
+      "privacy_policy_desc": "Markdownでプライバシーポリシーを記述してください。"
     },
     "registration_message_help": "このメッセージは登録ページでユーザーに表示されます。"
+  },
+  "legal": {
+    "terms_of_service": "利用規約",
+    "privacy_policy": "プライバシーポリシー",
+    "no_content": "サーバー管理者がまだコンテンツを設定していません。"
   },
   "admin_accounts": {
     "filter_all": "すべて",

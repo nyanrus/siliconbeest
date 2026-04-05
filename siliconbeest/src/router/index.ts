@@ -47,6 +47,18 @@ const router = createRouter({
       meta: { titleKey: 'About' },
     },
     {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('@/views/TermsView.vue'),
+      meta: { titleKey: 'Terms of Service' },
+    },
+    {
+      path: '/privacy',
+      name: 'privacy',
+      component: () => import('@/views/PrivacyView.vue'),
+      meta: { titleKey: 'Privacy Policy' },
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('@/views/SearchView.vue'),

@@ -606,6 +606,7 @@
     "site_info": "Site Information",
     "branding": "Branding",
     "registration": "Registration",
+    "landing_legal": "Landing Page & Legal",
     "limits": "Limits",
     "smtp": "Email (SMTP)",
     "smtp_test": "Send test email",
@@ -642,9 +643,21 @@
       "smtp_secure": "Connection security",
       "vapid_public_key": "VAPID Public Key",
       "vapid_private_key": "VAPID Private Key",
-      "registration_message": "Registration message"
+      "registration_message": "Registration message",
+      "site_landing_markdown": "Landing page content",
+      "site_landing_markdown_desc": "Markdown content displayed on the landing page for logged-out visitors.",
+      "site_landing_markdown_placeholder": "# Welcome\nWrite something about your server...",
+      "terms_of_service": "Terms of Service",
+      "terms_of_service_desc": "Write your terms of service in Markdown.",
+      "privacy_policy": "Privacy Policy",
+      "privacy_policy_desc": "Write your privacy policy in Markdown."
     },
     "registration_message_help": "This message is shown to users on the registration page."
+  },
+  "legal": {
+    "terms_of_service": "Terms of Service",
+    "privacy_policy": "Privacy Policy",
+    "no_content": "No content has been set by the server administrator."
   },
   "admin_accounts": {
     "filter_all": "All",

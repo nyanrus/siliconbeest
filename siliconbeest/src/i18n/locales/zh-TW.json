@@ -606,6 +606,7 @@
     "site_info": "站台資訊",
     "branding": "品牌",
     "registration": "註冊",
+    "landing_legal": "首頁與法律條款",
     "limits": "限制",
     "smtp": "電子郵件（SMTP）",
     "smtp_test": "寄送測試郵件",
@@ -642,9 +643,21 @@
       "smtp_secure": "連線安全性",
       "vapid_public_key": "VAPID 公開金鑰",
       "vapid_private_key": "VAPID 私密金鑰",
-      "registration_message": "註冊訊息"
+      "registration_message": "註冊訊息",
+      "site_landing_markdown": "首頁內容",
+      "site_landing_markdown_desc": "未登入訪客看到的 Markdown 內容。",
+      "site_landing_markdown_placeholder": "# 歡迎\n寫一些關於您的伺服器的介紹...",
+      "terms_of_service": "服務條款",
+      "terms_of_service_desc": "以 Markdown 撰寫服務條款。",
+      "privacy_policy": "隱私權政策",
+      "privacy_policy_desc": "以 Markdown 撰寫隱私權政策。"
     },
     "registration_message_help": "此訊息將顯示在註冊頁面上。"
+  },
+  "legal": {
+    "terms_of_service": "服務條款",
+    "privacy_policy": "隱私權政策",
+    "no_content": "伺服器管理員尚未設定內容。"
   },
   "admin_accounts": {
     "filter_all": "全部",

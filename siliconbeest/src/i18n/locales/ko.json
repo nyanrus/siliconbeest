@@ -606,6 +606,7 @@
     "site_info": "사이트 정보",
     "branding": "브랜딩",
     "registration": "가입 설정",
+    "landing_legal": "랜딩 페이지 및 법적 고지",
     "limits": "제한",
     "smtp": "이메일 (SMTP)",
     "smtp_test": "테스트 이메일 보내기",
@@ -642,9 +643,21 @@
       "smtp_secure": "연결 보안",
       "vapid_public_key": "VAPID 공개 키",
       "vapid_private_key": "VAPID 비공개 키",
-      "registration_message": "가입 안내 메시지"
+      "registration_message": "가입 안내 메시지",
+      "site_landing_markdown": "랜딩 페이지 콘텐츠",
+      "site_landing_markdown_desc": "로그아웃 상태 방문자에게 표시되는 마크다운 콘텐츠.",
+      "site_landing_markdown_placeholder": "# 환영합니다\n서버에 대해 작성하세요...",
+      "terms_of_service": "이용약관",
+      "terms_of_service_desc": "마크다운으로 이용약관을 작성하세요.",
+      "privacy_policy": "개인정보처리방침",
+      "privacy_policy_desc": "마크다운으로 개인정보처리방침을 작성하세요."
     },
     "registration_message_help": "이 메시지는 가입 페이지에서 사용자에게 표시됩니다."
+  },
+  "legal": {
+    "terms_of_service": "이용약관",
+    "privacy_policy": "개인정보처리방침",
+    "no_content": "서버 관리자가 아직 콘텐츠를 설정하지 않았습니다."
   },
   "admin_accounts": {
     "filter_all": "전체",
