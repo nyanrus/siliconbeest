@@ -29,18 +29,15 @@ export const findByToken = async (
 ): Promise<OAuthAccessToken | null> => {
 	const hash = await sha256(token);
 	// Try hash first, fall back to plaintext for legacy tokens
-	// oxlint-disable-next-line fp/no-let
-	let result = await db
+	const resultByHash = await db
 		.prepare('SELECT * FROM oauth_access_tokens WHERE token_hash = ? AND revoked_at IS NULL')
 		.bind(hash)
 		.first<OAuthAccessToken>();
-	if (!result) {
-		result = await db
-			.prepare('SELECT * FROM oauth_access_tokens WHERE token = ? AND revoked_at IS NULL')
-			.bind(token)
-			.first<OAuthAccessToken>();
-	}
-	return result ?? null;
+
+	return resultByHash ?? await db
+		.prepare('SELECT * FROM oauth_access_tokens WHERE token = ? AND revoked_at IS NULL')
+		.bind(token)
+		.first<OAuthAccessToken>() ?? null;
 };
 
 export const findByUserId = async (
