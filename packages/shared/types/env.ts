@@ -13,6 +13,8 @@
  *   WORKER (service binding)
  */
 
+import type { QueueMessage } from './queue';
+
 export interface BaseEnv {
   // D1 Database
   DB: D1Database;
@@ -24,9 +26,9 @@ export interface BaseEnv {
   CACHE: KVNamespace;
   FEDIFY_KV: KVNamespace;
 
-  // Queues (unparameterized — each package adds its own generic)
-  QUEUE_FEDERATION: Queue;
-  QUEUE_INTERNAL: Queue;
+  // Queues (producer bindings)
+  QUEUE_FEDERATION: Queue<QueueMessage>;
+  QUEUE_INTERNAL: Queue<QueueMessage>;
 
   // Environment variables
   INSTANCE_DOMAIN: string;

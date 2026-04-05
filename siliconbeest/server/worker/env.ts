@@ -1,43 +1,30 @@
 import { Hono } from 'hono';
 
 import type { Federation } from '@fedify/fedify';
-import type { QueueMessage, SendEmailMessage } from './types/queue';
+import type { SendEmailMessage } from './types/queue';
 import type { FedifyContextData } from './federation/fedify';
+import type { BaseEnv } from '../../../packages/shared/types/env';
 
 /**
  * Cloudflare Workers environment bindings.
  * Must match the bindings declared in wrangler.jsonc.
  */
-export interface Env {
-  // D1 Database
-  DB: D1Database;
-
-  // R2 Object Storage (media uploads)
-  MEDIA_BUCKET: R2Bucket;
-
-  // KV Namespaces
-  CACHE: KVNamespace;
+export interface Env extends BaseEnv {
+  // KV Namespaces (worker-only)
   SESSIONS: KVNamespace;
-  FEDIFY_KV: KVNamespace;
 
-  // Queues (producer bindings)
-  QUEUE_FEDERATION: Queue<QueueMessage>;
-  QUEUE_INTERNAL: Queue<QueueMessage>;
+  // Queues (worker-only)
   QUEUE_EMAIL: Queue<SendEmailMessage>;
 
-  // Durable Objects
+  // Durable Objects (worker-only)
   STREAMING_DO: DurableObjectNamespace;
 
   // Environment variables (wrangler.jsonc vars)
-  INSTANCE_DOMAIN: string;
   INSTANCE_TITLE: string;
   REGISTRATION_MODE: string;
 
-  // Secrets (wrangler secret put) — optional; DB settings take priority
-  VAPID_PUBLIC_KEY?: string;
-  VAPID_PRIVATE_KEY?: string;
+  // Secrets (worker-only)
   OTP_ENCRYPTION_KEY: string;
-
 }
 
 /**

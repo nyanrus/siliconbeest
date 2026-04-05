@@ -5,6 +5,8 @@
  * Designed to work in Cloudflare Workers (no DOM parser).
  */
 
+import { extractDomain } from '../../../../packages/shared/domain-blocks';
+
 export interface OgData {
   url: string;
   title: string;
@@ -50,16 +52,6 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
     .replace(/&#x2F;/g, '/');
-}
-
-/** Extract the domain from a URL for provider_name. */
-function extractDomain(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
 }
 
 /**
@@ -127,7 +119,7 @@ export async function fetchOgMetadata(url: string): Promise<OgData | null> {
     if (!title && !description && !ogImage) return null;
 
     const finalUrl = ogUrl || url;
-    const domain = extractDomain(finalUrl);
+    const domain = extractDomain(finalUrl) ?? '';
 
     return {
       url: finalUrl,

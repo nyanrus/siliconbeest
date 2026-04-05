@@ -6,48 +6,11 @@
  *
  * This is the single source of truth — both the worker and the
  * queue consumer import from here.
- *
- * IMPORTANT: This file must have zero runtime dependencies on Fedify
- * or any other external library. All types are plain TypeScript
- * interfaces/types.
  */
 
-// ============================================================
-// ACTIVITYPUB OBJECT (structural, no Fedify dependency)
-// ============================================================
+import type { APActivity, APContext, APContextValue } from './activitypub';
 
-export type APContextValue = string | Record<string, unknown>;
-export type APContext = string | APContextValue[];
-
-/** Structural ActivityPub activity shape carried in queue messages. */
-export interface APActivity {
-  '@context'?: APContext;
-  id?: string;
-  type: string;
-  actor: string;
-  object?: string | Record<string, unknown> | Array<string | Record<string, unknown>>;
-  target?: string | Record<string, unknown>;
-  published?: string;
-  to?: string | string[];
-  cc?: string | string[];
-  content?: string | null;
-  signature?: {
-    type: string;
-    creator: string;
-    created: string;
-    signatureValue: string;
-  };
-  proof?: {
-    type: 'DataIntegrityProof';
-    cryptosuite: string;
-    verificationMethod: string;
-    proofPurpose: string;
-    proofValue: string;
-    created: string;
-  };
-  /** Allow additional fields (Misskey extensions, etc.) */
-  [key: string]: unknown;
-}
+export type { APActivity, APContext, APContextValue };
 
 // ============================================================
 // INDIVIDUAL MESSAGE TYPES

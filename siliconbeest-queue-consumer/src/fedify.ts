@@ -8,37 +8,16 @@
  * @see https://fedify.dev/
  */
 
-import { createFederation, type Federation, type MessageQueue } from '@fedify/fedify';
+import { createFederation, type Federation } from '@fedify/fedify';
 import { WorkersKvStore, WorkersMessageQueue } from '@fedify/cfworkers';
 import type { Env } from './env';
+import { CloudflareMessageQueue } from '../../packages/shared/fedify/cloudflare-queue';
 
 /**
  * Context data passed to all Fedify dispatchers and listeners.
  */
 export interface FedifyContextData {
   env: Env;
-}
-
-/**
- * Wrapper around WorkersMessageQueue that makes listen() a no-op.
- */
-class CloudflareMessageQueue implements MessageQueue {
-  private inner: WorkersMessageQueue;
-
-  constructor(queue: Queue) {
-    this.inner = new WorkersMessageQueue(queue);
-  }
-
-  enqueue(message: unknown, options?: any): Promise<void> {
-    return this.inner.enqueue(message, options);
-  }
-
-  async listen(
-    _handler: (message: unknown) => Promise<void> | void,
-    _options?: Record<string, unknown>,
-  ): Promise<void> {
-    // No-op: Workers use processQueuedTask() instead.
-  }
 }
 
 /** Cached Federation instance (lives for the isolate lifetime) */
@@ -53,7 +32,7 @@ export function createFed(env: Env): Federation<FedifyContextData> {
 
   cachedFed = createFederation<FedifyContextData>({
     kv: new WorkersKvStore(env.FEDIFY_KV as unknown as import('@cloudflare/workers-types/experimental').KVNamespace),
-    queue: new CloudflareMessageQueue(env.QUEUE_FEDERATION),
+    queue: new CloudflareMessageQueue(new WorkersMessageQueue(env.QUEUE_FEDERATION)),
     userAgent: {
       software: 'SiliconBeest/1.0',
       url: new URL(`https://${env.INSTANCE_DOMAIN}/`),

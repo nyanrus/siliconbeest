@@ -8,9 +8,14 @@
 // Key management
 export {
 	parsePemToBuffer,
+	base64UrlToBytes,
 	importPrivateKey,
 	importPublicKey,
+	importRsaPublicKey,
+	importRsaPrivateKey,
 	importRsaKeyPairFromPem,
+	importEd25519PublicKey,
+	importEd25519PrivateKey,
 	importEd25519KeyPairFromBase64url,
 } from './keys';
 

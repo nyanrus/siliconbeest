@@ -9,6 +9,42 @@ import type { Env } from '../env';
 import type { TimelineFanoutMessage } from '../shared/types/queue';
 import { measureAsync, PerfTimer } from '../observability/performance';
 
+/** Shape of rows returned by the statuses JOIN accounts queries */
+interface StatusWithAccount {
+  id: string;
+  uri: string;
+  content: string;
+  visibility: string;
+  sensitive: number | boolean;
+  content_warning: string | null;
+  language: string | null;
+  url: string | null;
+  created_at: string;
+  in_reply_to_id: string | null;
+  in_reply_to_account_id: string | null;
+  reblog_of_id: string | null;
+  reblogs_count: number;
+  favourites_count: number;
+  replies_count: number;
+  edited_at: string | null;
+  deleted_at: string | null;
+  account_id: string;
+  username: string;
+  domain: string | null;
+  display_name: string | null;
+  account_note: string | null;
+  account_url: string | null;
+  account_uri: string | null;
+  avatar_url: string | null;
+  header_url: string | null;
+  locked: number | boolean;
+  bot: number | boolean;
+  followers_count: number;
+  following_count: number;
+  statuses_count: number;
+  account_created_at: string;
+}
+
 /** Read emoji_tags JSON from the status and return proxied emoji objects */
 async function fetchEmojisForStatus(
   db: D1Database,
@@ -191,7 +227,7 @@ export async function handleTimelineFanout(
            WHERE s.id = ?`,
         )
           .bind(statusId)
-          .first(),
+          .first<StatusWithAccount>(),
         { statusId }
       );
 
@@ -248,7 +284,7 @@ export async function handleTimelineFanout(
           mentions: [],
           tags: [],
           emojis: statusEmojis,
-          reblog: null as any,
+          reblog: null,
           poll: null,
           card: null,
           application: null,
@@ -296,10 +332,10 @@ export async function handleTimelineFanout(
                     a.created_at AS account_created_at
              FROM statuses s JOIN accounts a ON a.id = s.account_id
              WHERE s.id = ? AND s.deleted_at IS NULL`,
-          ).bind(statusRow.reblog_of_id).first();
+          ).bind(statusRow.reblog_of_id).first<StatusWithAccount>();
 
           if (origRow) {
-            const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id as string, env.INSTANCE_DOMAIN);
+            const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id, env.INSTANCE_DOMAIN);
             const parsed = JSON.parse(statusPayload);
             parsed.reblog = {
               id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
@@ -378,14 +414,14 @@ export async function handleTimelineFanout(
             a.created_at AS account_created_at
      FROM statuses s JOIN accounts a ON a.id = s.account_id
      WHERE s.id = ?`,
-  ).bind(statusId).first();
+  ).bind(statusId).first<StatusWithAccount>();
 
   if (publicStatusRow && publicStatusRow.visibility === 'public') {
     const pubEmojis = await fetchEmojisForStatus(env.DB, statusId, env.INSTANCE_DOMAIN);
     // Account emojis from accounts.emoji_tags
     const pubAccountEmojis = await fetchAccountEmojis(
       env.DB,
-      publicStatusRow.account_id as string,
+      publicStatusRow.account_id,
       env.INSTANCE_DOMAIN,
     );
     // Fetch media for public streaming
@@ -417,7 +453,7 @@ export async function handleTimelineFanout(
       favourites_count: publicStatusRow.favourites_count || 0,
       replies_count: publicStatusRow.replies_count || 0, edited_at: publicStatusRow.edited_at,
       media_attachments: pubMedia, mentions: [], tags: [], emojis: pubEmojis,
-      reblog: null as any, poll: null, card: null, application: null, text: null, filtered: [],
+      reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
       account: {
         id: publicStatusRow.account_id, username: publicStatusRow.username,
         acct: publicStatusRow.domain ? `${publicStatusRow.username}@${publicStatusRow.domain}` : publicStatusRow.username,
@@ -445,14 +481,14 @@ export async function handleTimelineFanout(
                 a.created_at AS account_created_at
          FROM statuses s JOIN accounts a ON a.id = s.account_id
          WHERE s.id = ? AND s.deleted_at IS NULL`,
-      ).bind(publicStatusRow.reblog_of_id).first();
+      ).bind(publicStatusRow.reblog_of_id).first<StatusWithAccount>();
       if (origRow) {
-        const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id as string, env.INSTANCE_DOMAIN);
+        const origAcctEmojis = await fetchAccountEmojis(env.DB, origRow.account_id, env.INSTANCE_DOMAIN);
         const parsed = JSON.parse(pubPayload);
         parsed.reblog = {
           id: origRow.id, uri: origRow.uri, created_at: origRow.created_at,
           content: origRow.content, visibility: origRow.visibility,
-          sensitive: origRow.sensitive === 1, spoiler_text: (origRow as any).content_warning || '',
+          sensitive: origRow.sensitive === 1, spoiler_text: origRow.content_warning || '',
           language: origRow.language, url: origRow.url,
           in_reply_to_id: origRow.in_reply_to_id, in_reply_to_account_id: origRow.in_reply_to_account_id,
           reblogs_count: origRow.reblogs_count || 0, favourites_count: origRow.favourites_count || 0,
@@ -461,16 +497,16 @@ export async function handleTimelineFanout(
           reblog: null, poll: null, card: null, application: null, text: null, filtered: [],
           account: {
             id: origRow.account_id, username: origRow.username,
-            acct: (origRow as any).domain ? `${origRow.username}@${(origRow as any).domain}` : origRow.username,
-            display_name: (origRow as any).display_name || '', locked: origRow.locked === 1,
+            acct: origRow.domain ? `${origRow.username}@${origRow.domain}` : origRow.username,
+            display_name: origRow.display_name || '', locked: origRow.locked === 1,
             bot: origRow.bot === 1, discoverable: true, group: false,
-            created_at: (origRow as any).account_created_at, note: (origRow as any).account_note || '',
-            url: (origRow as any).account_url, uri: (origRow as any).account_uri,
-            avatar: (origRow as any).avatar_url || '', avatar_static: (origRow as any).avatar_url || '',
-            header: (origRow as any).header_url || '', header_static: (origRow as any).header_url || '',
-            followers_count: (origRow as any).followers_count || 0,
-            following_count: (origRow as any).following_count || 0,
-            statuses_count: (origRow as any).statuses_count || 0,
+            created_at: origRow.account_created_at, note: origRow.account_note || '',
+            url: origRow.account_url, uri: origRow.account_uri,
+            avatar: origRow.avatar_url || '', avatar_static: origRow.avatar_url || '',
+            header: origRow.header_url || '', header_static: origRow.header_url || '',
+            followers_count: origRow.followers_count || 0,
+            following_count: origRow.following_count || 0,
+            statuses_count: origRow.statuses_count || 0,
             last_status_at: null, emojis: origAcctEmojis, fields: [],
           },
         };
