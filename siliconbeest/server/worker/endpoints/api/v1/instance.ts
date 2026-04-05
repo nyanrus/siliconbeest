@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env, AppVariables } from '../../../env';
 import { getVapidPublicKey } from '../../../utils/vapid';
 import { MASTODON_V1_VERSION } from '../../../version';
-import { getSettings, getRules, getStats } from '../../../services/instance';
+import { getSettings, getRules, getStats, getContactAccount } from '../../../services/instance';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -32,32 +32,30 @@ app.get('/', async (c) => {
   // Contact account (admin)
   let contactAccount = null;
   const contactUsername = dbSettings.site_contact_username || 'admin';
-  const adminRow = await c.env.DB.prepare(
-    'SELECT a.* FROM accounts a JOIN users u ON u.account_id = a.id WHERE a.username = ?1 AND a.domain IS NULL AND u.role = ?2 LIMIT 1',
-  ).bind(contactUsername, 'admin').first();
+  const adminRow = await getContactAccount(c.env.DB, contactUsername);
 
   if (adminRow) {
     contactAccount = {
-      id: adminRow.id as string,
-      username: adminRow.username as string,
-      acct: adminRow.username as string,
-      display_name: (adminRow.display_name as string) || '',
-      note: (adminRow.note as string) || '',
+      id: adminRow.id,
+      username: adminRow.username,
+      acct: adminRow.username,
+      display_name: adminRow.display_name || '',
+      note: adminRow.note || '',
       url: `https://${domain}/@${adminRow.username}`,
       uri: `https://${domain}/users/${adminRow.username}`,
-      avatar: (adminRow.avatar_url as string) || null,
-      avatar_static: (adminRow.avatar_static_url as string) || null,
-      header: (adminRow.header_url as string) || null,
-      header_static: (adminRow.header_static_url as string) || null,
-      locked: !!(adminRow.locked as number),
-      bot: !!(adminRow.bot as number),
-      discoverable: !!(adminRow.discoverable as number),
+      avatar: adminRow.avatar_url || null,
+      avatar_static: adminRow.avatar_static_url || null,
+      header: adminRow.header_url || null,
+      header_static: adminRow.header_static_url || null,
+      locked: !!adminRow.locked,
+      bot: !!adminRow.bot,
+      discoverable: !!adminRow.discoverable,
       group: false,
-      created_at: adminRow.created_at as string,
-      last_status_at: adminRow.last_status_at as string | null,
-      statuses_count: (adminRow.statuses_count as number) || 0,
-      followers_count: (adminRow.followers_count as number) || 0,
-      following_count: (adminRow.following_count as number) || 0,
+      created_at: adminRow.created_at,
+      last_status_at: adminRow.last_status_at,
+      statuses_count: adminRow.statuses_count || 0,
+      followers_count: adminRow.followers_count || 0,
+      following_count: adminRow.following_count || 0,
       emojis: [],
       fields: [],
     };

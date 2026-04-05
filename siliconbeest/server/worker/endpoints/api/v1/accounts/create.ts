@@ -7,6 +7,7 @@ import { sendConfirmation, notifyAdminsPendingUser } from '../../../../services/
 import { verifyTurnstile, getTurnstileSettings } from '../../../../utils/turnstile';
 import { sanitizeLocale } from '../../../../utils/locales';
 import { registerUser, RegisterInput } from '../../../../services/auth';
+import { isEmailDomainBlocked, getSetting } from '../../../../services/instance';
 
 type HonoEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -60,13 +61,8 @@ app.post('/', async (c) => {
 
   // Check email domain against email_domain_blocks table
   const emailDomain = body.email.split('@')[1];
-  if (emailDomain) {
-    const blockedDomain = await c.env.DB.prepare(
-      'SELECT 1 FROM email_domain_blocks WHERE domain = ?1 LIMIT 1',
-    ).bind(emailDomain.toLowerCase()).first();
-    if (blockedDomain) {
-      throw new AppError(422, 'Validation failed', 'Email domain is not allowed for registration');
-    }
+  if (emailDomain && await isEmailDomainBlocked(c.env.DB, emailDomain)) {
+    throw new AppError(422, 'Validation failed', 'Email domain is not allowed for registration');
   }
 
   if (!body.agreement) {
@@ -87,8 +83,8 @@ app.post('/', async (c) => {
   }
 
   // Check registration mode from DB settings first, fall back to env var
-  const dbRegMode = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'registration_mode'").first<{ value: string }>();
-  const regMode = dbRegMode?.value || c.env.REGISTRATION_MODE || 'closed';
+  const regModeValue = await getSetting(c.env.DB, 'registration_mode');
+  const regMode = regModeValue || c.env.REGISTRATION_MODE || 'closed';
 
   const domain = c.env.INSTANCE_DOMAIN;
   const validatedLocale = sanitizeLocale(body.locale);

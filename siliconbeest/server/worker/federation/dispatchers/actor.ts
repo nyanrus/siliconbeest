@@ -310,10 +310,10 @@ export function setupActorDispatcher(fed: Federation<FedifyContextData>): void {
     if (!acctMatch) return [];
 
     const [, username, resourceDomain] = acctMatch;
-    if (resourceDomain!.toLowerCase() !== domain.toLowerCase()) return [];
+    if (!resourceDomain || resourceDomain.toLowerCase() !== domain.toLowerCase()) return [];
 
     // Instance actor case
-    if (username!.toLowerCase() === domain.toLowerCase()) return [];
+    if (!username || username.toLowerCase() === domain.toLowerCase()) return [];
 
     const profileUrl = `https://${domain}/@${username}`;
 

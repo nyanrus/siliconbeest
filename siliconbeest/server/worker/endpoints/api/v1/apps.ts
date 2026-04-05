@@ -3,6 +3,7 @@ import type { Env, AppVariables } from '../../../env';
 import { sha256 } from '../../../utils/crypto';
 import { createOAuthApp } from '../../../services/oauth';
 import { getVapidPublicKey } from '../../../utils/vapid';
+import { getApplicationByAccessToken } from '../../../services/instance';
 
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -61,41 +62,17 @@ app.get('/verify_credentials', async (c) => {
 	}
 	const token = parts[1];
 
-	// Look up the token by hash
+	// Look up the token by hash (with legacy plaintext fallback)
 	const tokenHash = await sha256(token);
+	const appInfo = await getApplicationByAccessToken(c.env.DB, tokenHash, token);
 
-	let row = await c.env.DB.prepare(
-		`SELECT a.name, a.website, a.scopes
-		 FROM oauth_access_tokens t
-		 JOIN oauth_applications a ON a.id = t.application_id
-		 WHERE t.token_hash = ?1
-		   AND t.revoked_at IS NULL
-		 LIMIT 1`,
-	)
-		.bind(tokenHash)
-		.first();
-
-	if (!row) {
-		// Fallback for legacy plaintext tokens
-		row = await c.env.DB.prepare(
-			`SELECT a.name, a.website, a.scopes
-			 FROM oauth_access_tokens t
-			 JOIN oauth_applications a ON a.id = t.application_id
-			 WHERE t.token = ?1
-			   AND t.revoked_at IS NULL
-			 LIMIT 1`,
-		)
-			.bind(token)
-			.first();
-	}
-
-	if (!row) {
+	if (!appInfo) {
 		return c.json({ error: 'The access token is invalid' }, 401);
 	}
 
 	return c.json({
-		name: row.name,
-		website: row.website ?? null,
+		name: appInfo.name,
+		website: appInfo.website ?? null,
 		vapid_key: await getVapidPublicKey(c.env.DB),
 	});
 });

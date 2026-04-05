@@ -8,7 +8,7 @@
 
 import { generateUlid } from '../utils/ulid';
 import { AppError } from '../middleware/errorHandler';
-import type { RuleRow } from '../types/db';
+import type { AccountRow, RuleRow } from '../types/db';
 
 // ----------------------------------------------------------------
 // Settings
@@ -219,4 +219,55 @@ export async function getPeers(db: D1Database): Promise<string[]> {
 		.prepare('SELECT domain FROM instances ORDER BY domain ASC')
 		.all();
 	return (results ?? []).map((r) => r.domain as string);
+}
+
+// ----------------------------------------------------------------
+// Email Domain Blocks
+// ----------------------------------------------------------------
+
+export async function isEmailDomainBlocked(db: D1Database, domain: string): Promise<boolean> {
+	const row = await db.prepare(
+		'SELECT 1 FROM email_domain_blocks WHERE domain = ?1 LIMIT 1',
+	).bind(domain.toLowerCase()).first();
+	return !!row;
+}
+
+// ----------------------------------------------------------------
+// Contact Account
+// ----------------------------------------------------------------
+
+export async function getContactAccount(db: D1Database, username: string): Promise<AccountRow | null> {
+	return db.prepare(
+		'SELECT a.* FROM accounts a JOIN users u ON u.account_id = a.id WHERE a.username = ?1 AND a.domain IS NULL AND u.role = ?2 LIMIT 1',
+	).bind(username, 'admin').first<AccountRow>();
+}
+
+// ----------------------------------------------------------------
+// OAuth Application Lookup
+// ----------------------------------------------------------------
+
+export async function getApplicationByAccessToken(
+	db: D1Database,
+	tokenHash: string,
+	tokenPlaintext: string,
+): Promise<{ name: string; website: string | null; scopes: string } | null> {
+	const row = await db.prepare(
+		`SELECT a.name, a.website, a.scopes
+		 FROM oauth_access_tokens t
+		 JOIN oauth_applications a ON a.id = t.application_id
+		 WHERE t.token_hash = ?1
+		   AND t.revoked_at IS NULL
+		 LIMIT 1`,
+	).bind(tokenHash).first<{ name: string; website: string | null; scopes: string }>();
+	if (row) return row;
+
+	// Fallback for legacy plaintext tokens
+	return db.prepare(
+		`SELECT a.name, a.website, a.scopes
+		 FROM oauth_access_tokens t
+		 JOIN oauth_applications a ON a.id = t.application_id
+		 WHERE t.token = ?1
+		   AND t.revoked_at IS NULL
+		 LIMIT 1`,
+	).bind(tokenPlaintext).first<{ name: string; website: string | null; scopes: string }>();
 }

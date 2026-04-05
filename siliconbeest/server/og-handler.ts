@@ -25,26 +25,26 @@ interface PageMatch {
 export function parsePageType(pathname: string): PageMatch {
   // /@username/statusId  (statusId is alphanumeric / numeric)
   const statusMatch = pathname.match(/^\/@([^/]+)\/([A-Za-z0-9]+)$/);
-  if (statusMatch) {
-    return { type: 'status', params: { acct: statusMatch[1]!, statusId: statusMatch[2]! } };
+  if (statusMatch?.[1] && statusMatch[2]) {
+    return { type: 'status', params: { acct: statusMatch[1], statusId: statusMatch[2] } };
   }
 
   // /%40username/statusId  (percent-encoded @)
   const statusMatchEncoded = pathname.match(/^\/%40([^/]+)\/([A-Za-z0-9]+)$/);
-  if (statusMatchEncoded) {
-    return { type: 'status', params: { acct: statusMatchEncoded[1]!, statusId: statusMatchEncoded[2]! } };
+  if (statusMatchEncoded?.[1] && statusMatchEncoded[2]) {
+    return { type: 'status', params: { acct: statusMatchEncoded[1], statusId: statusMatchEncoded[2] } };
   }
 
   // /@username (profile)
   const profileMatch = pathname.match(/^\/@([^/]+)$/);
-  if (profileMatch) {
-    return { type: 'profile', params: { acct: profileMatch[1]! } };
+  if (profileMatch?.[1]) {
+    return { type: 'profile', params: { acct: profileMatch[1] } };
   }
 
   // /%40username (profile, percent-encoded)
   const profileMatchEncoded = pathname.match(/^\/%40([^/]+)$/);
-  if (profileMatchEncoded) {
-    return { type: 'profile', params: { acct: profileMatchEncoded[1]! } };
+  if (profileMatchEncoded?.[1]) {
+    return { type: 'profile', params: { acct: profileMatchEncoded[1] } };
   }
 
   // /about or /about/more
@@ -214,7 +214,7 @@ export async function handleOgRequest(url: URL, env: Env): Promise<Response | nu
   }
 
   if (page.type === 'profile') {
-    const acct = page.params.acct!;
+    const acct = page.params.acct;
     const accountData = await fetchApi(env, domain, `/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`);
     if (accountData) {
       const displayName = accountData.display_name || accountData.username || acct;
