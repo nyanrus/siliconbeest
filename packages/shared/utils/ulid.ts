@@ -1,9 +1,11 @@
 /**
  * ULID (Universally Unique Lexicographically Sortable Identifier) Utilities
  *
- * Self-contained implementation that works in Cloudflare Workers
- * without external dependencies. Uses Web Crypto API for randomness.
+ * Re-exports from the `ulid` package for ULID generation,
+ * with additional validation and timestamp extraction helpers.
  */
+
+import { ulid } from 'ulid';
 
 const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -14,32 +16,7 @@ const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  * Crockford Base32 encoded, always 26 characters.
  */
 export function generateUlid(): string {
-	const now = Date.now();
-
-	// Encode timestamp (48-bit, 10 chars of Crockford Base32)
-	let ts = '';
-	let t = now;
-	for (let i = 0; i < 10; i++) {
-		ts = CROCKFORD_BASE32[t % 32] + ts;
-		t = Math.floor(t / 32);
-	}
-
-	// Encode randomness (80-bit, 16 chars of Crockford Base32)
-	const rand = crypto.getRandomValues(new Uint8Array(10));
-	let r = '';
-	for (let i = 0; i < 10; i++) {
-		// Use two chars per byte (5 bits each, but we only have 8 bits per byte)
-		// We need 16 chars from 10 bytes = 80 bits
-		r += CROCKFORD_BASE32[rand[i] >> 3]; // upper 5 bits
-		if (i < 6) {
-			// For first 6 bytes, also use lower bits combined with next byte
-			r += CROCKFORD_BASE32[((rand[i] & 0x07) << 2) | (i + 1 < 10 ? rand[i + 1] >> 6 : 0)];
-		}
-	}
-	// Trim to exactly 16 chars
-	r = r.slice(0, 16);
-
-	return ts + r;
+	return ulid();
 }
 
 /**

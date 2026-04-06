@@ -114,10 +114,15 @@ export function serializeAccount(
   const acct = isLocal ? row.username : `${row.username}@${row.domain}`;
   const url = row.url ?? row.uri;
 
-  const rawAvatar = row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`;
-  const rawAvatarStatic = row.avatar_static_url || row.avatar_url || `${new URL(row.uri).origin}/default-avatar.svg`;
-  const rawHeader = row.header_url || `${new URL(row.uri).origin}/default-header.svg`;
-  const rawHeaderStatic = row.header_static_url || row.header_url || `${new URL(row.uri).origin}/default-header.svg`;
+  let origin = '';
+  try {
+    origin = new URL(row.uri).origin;
+  } catch { /* malformed URI – leave origin empty */ }
+
+  const rawAvatar = row.avatar_url || `${origin}/default-avatar.svg`;
+  const rawAvatarStatic = row.avatar_static_url || row.avatar_url || `${origin}/default-avatar.svg`;
+  const rawHeader = row.header_url || `${origin}/default-header.svg`;
+  const rawHeaderStatic = row.header_static_url || row.header_url || `${origin}/default-header.svg`;
 
   const domain = opts?.instanceDomain;
 
@@ -287,7 +292,7 @@ export function serializeNotification(
     account: MastodonAccount;
     status?: MastodonStatus | null;
   },
-): MastodonNotification {
+): MastodonNotification & { emoji?: string; read: boolean; group_key: string } {
   const notification: MastodonNotification & { emoji?: string; emoji_url?: string | null; read?: boolean; group_key?: string } = {
     id: row.id,
     type: row.type as NotificationType,

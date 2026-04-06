@@ -158,7 +158,7 @@ export async function buildStatusStreamingPayload(
     fetchAccountEmojis(db, statusRow.account_id, instanceDomain),
     db
       .prepare(
-        'SELECT id, type, file_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
+        'SELECT id, type, file_key, thumbnail_key, file_content_type, description, blurhash, width, height FROM media_attachments WHERE status_id = ?',
       )
       .bind(statusId)
       .all(),
@@ -176,7 +176,7 @@ export async function buildStatusStreamingPayload(
         file_key: fk,
         file_content_type: (m.file_content_type as string) || '',
         file_size: 0,
-        thumbnail_key: null,
+        thumbnail_key: (m.thumbnail_key as string) || null,
         remote_url: isRemote ? fk : null,
         description: (m.description as string) || '',
         blurhash: (m.blurhash as string) || null,
@@ -208,10 +208,7 @@ export async function buildStatusStreamingPayload(
   if (statusRow.reblog_of_id) {
     const origRow = await db
       .prepare(
-        `${STATUS_ACCOUNT_QUERY} AND s.deleted_at IS NULL`.replace(
-          'WHERE s.id = ?',
-          'WHERE s.id = ?',
-        ),
+        `${STATUS_ACCOUNT_QUERY} AND s.deleted_at IS NULL`,
       )
       .bind(statusRow.reblog_of_id)
       .first<StatusWithAccountJoin>();
